@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebHead Media - Announcements</title>
+  <link rel="icon" type="image/png" href="/status/images/favicon.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #0a0a0f;
+      --card: rgba(30, 41, 59, 0.5);
+      --border: rgba(255, 255, 255, 0.1);
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #a855f7;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg); color: var(--text); min-height: 100vh; padding: 24px;
+    }
+    body::before {
+      content: ''; position: fixed; inset: 0; z-index: -1;
+      background:
+        radial-gradient(circle at 15% 85%, rgba(168, 85, 247, 0.18) 0%, transparent 45%),
+        radial-gradient(circle at 85% 15%, rgba(99, 102, 241, 0.18) 0%, transparent 45%);
+    }
+    .wrap { max-width: 600px; margin: 0 auto; }
+    h1 { font-size: 1.5rem; margin-bottom: 4px; }
+    h1 span { background: linear-gradient(90deg, #c084fc, #f0abfc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 24px; }
+    .card {
+      background: var(--card); backdrop-filter: blur(16px);
+      border: 1px solid var(--border); border-radius: 16px; padding: 20px; margin-bottom: 16px;
+    }
+    .card h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 14px; }
+    label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 6px; margin-top: 14px; }
+    label:first-of-type { margin-top: 0; }
+    input[type=text], input[type=password], textarea, select {
+      width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 12px; color: var(--text); font-size: 0.95rem; font-family: inherit;
+    }
+    textarea { resize: vertical; min-height: 64px; }
+    input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
+    .check { display: flex; align-items: center; gap: 8px; margin-top: 14px; cursor: pointer; }
+    .check input { width: 16px; height: 16px; accent-color: var(--accent); }
+    .check span { font-size: 0.9rem; color: var(--text); }
+    .row { display: flex; gap: 12px; }
+    .row > div { flex: 1; }
+    .btns { display: flex; gap: 12px; margin-top: 8px; }
+    button {
+      flex: 1; padding: 12px; border: none; border-radius: 10px; font-size: 0.95rem; font-weight: 600;
+      cursor: pointer; transition: opacity 0.15s, transform 0.05s;
+    }
+    button:active { transform: translateY(1px); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-save { background: linear-gradient(135deg, #9333ea, #c026d3); color: #fff; }
+    .btn-clear { background: rgba(255,255,255,0.08); color: var(--text); border: 1px solid var(--border); }
+    .status { font-size: 0.85rem; margin-top: 12px; min-height: 1.2em; }
+    .status.ok { color: #4ade80; }
+    .status.err { color: #f87171; }
+    .status.info { color: var(--muted); }
+    /* Preview banner — mirrors the real status-hub banner styling */
+    .preview-banner {
+      display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+      border: 1px solid; border-radius: 12px; color: #fff; font-weight: 500; font-size: 0.95rem; margin-top: 4px;
+    }
+    .preview-banner.red      { background: linear-gradient(135deg, #7f1d1d, #991b1b); border-color: #dc2626; }
+    .preview-banner.yellow   { background: linear-gradient(135deg, #78350f, #92400e); border-color: #f59e0b; }
+    .preview-banner.green    { background: linear-gradient(135deg, #14532d, #166534); border-color: #22c55e; }
+    .preview-banner.resolved { background: linear-gradient(135deg, #134e4a, #164e63, #1e3a8a); border-color: #14b8a6; }
+    .preview-banner.info     { background: linear-gradient(135deg, #1e3a8a, #1e40af); border-color: #3b82f6; }
+    .preview-off { color: var(--muted); font-size: 0.85rem; font-style: italic; }
+    .links { text-align: center; margin-top: 8px; }
+    .links a { color: var(--muted); font-size: 0.85rem; text-decoration: none; }
+    .links a:hover { color: var(--text); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1><span>Status Hub Announcements</span></h1>
+    <p class="sub">Set or clear the banner shown at <a href="/status/" style="color:#c084fc;">akplex.tv/status/</a></p>
+
+    <!-- ── Admin key ── -->
+    <div class="card">
+      <h2>Authentication</h2>
+      <label for="adminKey">Admin key</label>
+      <input type="password" id="adminKey" placeholder="X-Admin-Key" autocomplete="off">
+      <label class="check"><input type="checkbox" id="rememberKey"><span>Remember on this device</span></label>
+    </div>
+
+    <!-- ── The announcement form ── -->
+    <div class="card">
+      <h2>Banner</h2>
+
+      <label class="check"><input type="checkbox" id="enabled"><span>Banner enabled (visible to users)</span></label>
+
+      <label for="message" style="margin-top:18px;">Message</label>
+      <textarea id="message" placeholder="e.g. Plex is down for maintenance, back by 9pm"></textarea>
+
+      <div class="row">
+        <div>
+          <label for="severity">Severity / color</label>
+          <select id="severity">
+            <option value="info">ℹ️ Info — blue</option>
+            <option value="yellow">⚠️ Warning — yellow</option>
+            <option value="red">🛑 Critical — red</option>
+            <option value="green">✅ Good — green</option>
+            <option value="resolved">🔄 Resolved — teal</option>
+          </select>
+        </div>
+        <div>
+          <label for="expiry">Auto-expire after</label>
+          <select id="expiry">
+            <option value="">Never (clear manually)</option>
+            <option value="1">1 hour</option>
+            <option value="3">3 hours</option>
+            <option value="6">6 hours</option>
+            <option value="12">12 hours</option>
+            <option value="24">24 hours</option>
+          </select>
+        </div>
+      </div>
+
+      <label class="check"><input type="checkbox" id="dismissible" checked><span>Users can dismiss it (X button)</span></label>
+    </div>
+
+    <!-- ── Live preview ── -->
+    <div class="card">
+      <h2>Preview</h2>
+      <div id="preview"></div>
+    </div>
+
+    <!-- ── Actions ── -->
+    <div class="card">
+      <div class="btns">
+        <button class="btn-save" id="saveBtn">Save / Update banner</button>
+        <button class="btn-clear" id="clearBtn">Clear banner</button>
+      </div>
+      <div class="status info" id="status">Loading current announcement…</div>
+    </div>
+
+    <div class="links"><a href="/status/">← Back to Status Hub</a></div>
+  </div>
+
+  <script>
+    // ─────────────────────────────────────────────────────────────
+    // CONFIG / CONSTANTS
+    // ─────────────────────────────────────────────────────────────
+    const API = '/api/announcement';            // nginx proxies this to announcement-api:5000
+    const KEY_STORAGE = 'announce_admin_key';   // localStorage slot for the remembered admin key
+    const ICONS = { red: '🛑', yellow: '⚠️', green: '✅', resolved: '🔄', info: 'ℹ️' };
+
+    // Grab every element we touch, once.
+    const el = {
+      adminKey:    document.getElementById('adminKey'),
+      rememberKey: document.getElementById('rememberKey'),
+      enabled:     document.getElementById('enabled'),
+      message:     document.getElementById('message'),
+      severity:    document.getElementById('severity'),
+      expiry:      document.getElementById('expiry'),
+      dismissible: document.getElementById('dismissible'),
+      preview:     document.getElementById('preview'),
+      status:      document.getElementById('status'),
+      saveBtn:     document.getElementById('saveBtn'),
+      clearBtn:    document.getElementById('clearBtn'),
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // SMALL HELPERS
+    // ─────────────────────────────────────────────────────────────
+    function setStatus(msg, kind = 'info') {       // kind = 'ok' | 'err' | 'info'
+      el.status.textContent = msg;
+      el.status.className = 'status ' + kind;
+    }
+
+    function busy(isBusy) {                          // disable buttons while a request is in flight
+      el.saveBtn.disabled = isBusy;
+      el.clearBtn.disabled = isBusy;
+    }
+
+    // Re-draw the little preview banner from the current form state.
+    function renderPreview() {
+      const sev = el.severity.value;
+      const msg = el.message.value.trim();
+      if (!el.enabled.checked || !msg) {
+        el.preview.innerHTML = '<div class="preview-off">Banner is off — users see nothing.</div>';
+        return;
+      }
+      const dot = el.dismissible.checked ? ' &nbsp;✕' : '';
+      el.preview.innerHTML =
+        `<div class="preview-banner ${sev}"><span>${ICONS[sev] || ICONS.info}</span><span>${escapeHtml(msg)}</span><span style="margin-left:auto;opacity:.6;">${dot}</span></div>`;
+    }
+
+    function escapeHtml(s) {
+      return s.replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // ADMIN KEY: load remembered key on startup, keep storage in sync
+    // ─────────────────────────────────────────────────────────────
+    const savedKey = localStorage.getItem(KEY_STORAGE);
+    if (savedKey) { el.adminKey.value = savedKey; el.rememberKey.checked = true; }
+
+    function syncKeyStorage() {
+      if (el.rememberKey.checked && el.adminKey.value) {
+        localStorage.setItem(KEY_STORAGE, el.adminKey.value);
+      } else {
+        localStorage.removeItem(KEY_STORAGE);
+      }
+    }
+    el.adminKey.addEventListener('input', syncKeyStorage);
+    el.rememberKey.addEventListener('change', syncKeyStorage);
+
+    // ─────────────────────────────────────────────────────────────
+    // LOAD: GET the current announcement and fill the form
+    // ─────────────────────────────────────────────────────────────
+    async function loadCurrent() {
+      try {
+        const res = await fetch(API);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const a = await res.json();
+        el.enabled.checked     = !!a.enabled;
+        el.message.value       = a.message || '';
+        el.severity.value      = a.severity || 'info';
+        el.dismissible.checked = a.dismissible !== false;   // default true
+        el.expiry.value        = '';                        // can't reverse-derive hours; leave as "Never"
+        renderPreview();
+        if (a.enabled && a.message) {
+          let extra = '';
+          if (a.expiresAt) {
+            const mins = Math.round((a.expiresAt - Date.now()) / 60000);
+            extra = mins > 0 ? ` (expires in ~${mins} min)` : ' (expired — clients are hiding it)';
+          }
+          setStatus(`Currently showing a ${a.severity || 'info'} banner${extra}.`, 'info');
+        } else {
+          setStatus('No banner is currently shown.', 'info');
+        }
+      } catch (err) {
+        setStatus('Could not load current announcement: ' + err.message, 'err');
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // POST: send a new announcement state to the API
+    //   body  = the JSON payload ({enabled, message, severity, dismissible, expiresAt})
+    //   label = what to say in the status line on success
+    // ─────────────────────────────────────────────────────────────
+    async function post(body, label) {
+      const key = el.adminKey.value.trim();
+      if (!key) { setStatus('Enter the admin key first.', 'err'); el.adminKey.focus(); return; }
+      busy(true);
+      setStatus('Saving…', 'info');
+      try {
+        const res = await fetch(API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key },
+          body: JSON.stringify(body),
+        });
+        if (res.status === 401) { setStatus('Rejected: wrong admin key.', 'err'); return; }
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        await res.json();
+        setStatus(label, 'ok');
+        // Re-pull from the server so the form reflects exactly what was stored.
+        setTimeout(loadCurrent, 400);
+      } catch (err) {
+        setStatus('Save failed: ' + err.message, 'err');
+      } finally {
+        busy(false);
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // BUTTONS
+    // ─────────────────────────────────────────────────────────────
+    el.saveBtn.addEventListener('click', () => {
+      const message = el.message.value.trim();
+      const enabled = el.enabled.checked;
+      if (enabled && !message) { setStatus('Add a message, or uncheck "enabled" to hide the banner.', 'err'); return; }
+      const hours = parseInt(el.expiry.value, 10);
+      const expiresAt = Number.isFinite(hours) ? Date.now() + hours * 3600 * 1000 : null;
+      post(
+        { enabled, message, severity: el.severity.value, dismissible: el.dismissible.checked, expiresAt },
+        enabled ? 'Banner is live on the Status Hub.' : 'Banner saved (disabled — nothing shown).'
+      );
+    });
+
+    el.clearBtn.addEventListener('click', () => {
+      // Clearing = disable it. The API fills in sane defaults for the other fields.
+      post({ enabled: false }, 'Banner cleared.');
+    });
+
+    // ─────────────────────────────────────────────────────────────
+    // WIRE-UP: live preview + initial load
+    // ─────────────────────────────────────────────────────────────
+    ['input', 'change'].forEach(evt => {
+      el.message.addEventListener(evt, renderPreview);
+      el.severity.addEventListener(evt, renderPreview);
+      el.enabled.addEventListener(evt, renderPreview);
+      el.dismissible.addEventListener(evt, renderPreview);
+    });
+    renderPreview();
+    loadCurrent();
+  </script>
+</body>
+</html>

@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebHead Media - Report Issue</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="icon" type="image/x-icon" href="/images/favicon.ico">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary: #6366f1;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --dark: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.5);
+            --text: #e2e8f0;
+            --text-muted: #94a3b8;
+            --success: #22c55e;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--dark);
+            min-height: 100vh;
+            padding: 20px;
+            color: var(--text);
+        }
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background:
+                radial-gradient(circle at 20% 80%, rgba(236, 72, 153, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(99, 102, 241, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, rgba(139, 92, 246, 0.2) 0%, transparent 50%);
+            z-index: -1;
+        }
+        .container { max-width: 700px; margin: 0 auto; }
+
+        .nav-toggle {
+            display: flex; gap: 12px; margin-bottom: 32px;
+            background: var(--card-bg); backdrop-filter: blur(16px);
+            padding: 8px; border-radius: 16px;
+        }
+        .nav-btn {
+            flex: 1; padding: 14px 24px; background: transparent;
+            border: 2px solid transparent; border-radius: 12px;
+            color: var(--text-muted); font-size: 16px; font-weight: 600;
+            cursor: pointer; transition: all 0.2s;
+            display: flex; align-items: center; justify-content: center;
+            gap: 10px; text-decoration: none;
+        }
+        .nav-btn:hover { background: rgba(99, 102, 241, 0.1); color: var(--text); }
+        .nav-btn.active {
+            background: linear-gradient(135deg, var(--warning), var(--error));
+            color: white; border-color: var(--warning);
+        }
+
+        .header { text-align: center; margin-bottom: 20px; }
+        .logo {
+            width: 80px; height: 80px; margin: 0 auto 16px;
+            border-radius: 16px; overflow: hidden;
+            box-shadow: 0 6px 16px rgba(245, 158, 11, 0.3);
+        }
+        .logo img { width: 100%; height: 100%; object-fit: cover; }
+        h1 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+        .subtitle { font-size: 14px; color: var(--text-muted); }
+
+        .card {
+            background: var(--card-bg); backdrop-filter: blur(16px);
+            border-radius: 20px; padding: 32px;
+            box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
+            margin-bottom: 20px;
+        }
+        .section-title {
+            font-size: 18px; font-weight: 600; color: var(--warning);
+            margin-bottom: 16px; display: flex; align-items: center; gap: 10px;
+        }
+        .section-desc {
+            color: var(--text-muted); font-size: 14px;
+            margin-bottom: 20px; line-height: 1.5;
+        }
+
+        .search-wrapper {
+            display: flex; align-items: stretch;
+            background: rgba(15, 23, 42, 0.6);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px; transition: all 0.3s;
+        }
+        .search-wrapper:focus-within {
+            border-color: var(--warning);
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
+        }
+        .search-icon {
+            display: flex; align-items: center;
+            padding: 0 20px; color: var(--text-muted); font-size: 18px;
+        }
+        input, textarea {
+            padding: 18px 20px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px; color: var(--text);
+            font-size: 16px; outline: none;
+            transition: all 0.3s; font-family: inherit;
+        }
+        input { flex: 1; border: none; }
+        textarea {
+            width: 100%; min-height: 120px;
+            resize: vertical; display: block; margin-bottom: 20px;
+        }
+        textarea:focus { border-color: var(--warning); }
+        input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 0.8; }
+
+        .result-item {
+            display: flex; align-items: center; padding: 16px;
+            margin-bottom: 12px; background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px; cursor: pointer; transition: all 0.2s;
+        }
+        .result-item:hover {
+            transform: translateY(-2px);
+            border-color: var(--warning);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        .result-poster {
+            width: 70px; height: 105px; object-fit: cover;
+            border-radius: 8px; margin-right: 16px;
+        }
+        .result-info { flex: 1; }
+        .result-title { color: var(--text); font-weight: 600; font-size: 16px; margin-bottom: 4px; }
+        .result-meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .result-year { color: var(--text-muted); font-size: 14px; }
+        .result-type, .status-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 500;
+        }
+        .result-type {
+            background: rgba(245, 158, 11, 0.1); color: var(--warning);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+        }
+        .status-badge {
+            background: rgba(34, 197, 94, 0.1); color: var(--success);
+            border: 1px solid rgba(34, 197, 94, 0.2);
+        }
+        .results-header {
+            color: var(--text-muted); font-size: 14px;
+            margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+        }
+
+        .issue-form {
+            background: rgba(15, 23, 42, 0.6);
+            border: 2px solid rgba(245, 158, 11, 0.2);
+            border-radius: 16px; padding: 24px; margin-top: 24px;
+        }
+        .form-header {
+            display: flex; align-items: center; gap: 12px;
+            margin-bottom: 20px; color: var(--warning);
+            font-size: 18px; font-weight: 600;
+        }
+        .issue-type-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px; margin-bottom: 20px;
+        }
+        .issue-type-btn {
+            padding: 12px; background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px; color: var(--text-muted);
+            font-size: 14px; cursor: pointer; transition: all 0.2s;
+            display: flex; flex-direction: column; align-items: center; gap: 8px;
+        }
+        .issue-type-btn:hover { background: rgba(255, 255, 255, 0.08); border-color: rgba(245, 158, 11, 0.3); }
+        .issue-type-btn.selected { background: rgba(245, 158, 11, 0.15); border-color: var(--warning); color: var(--warning); }
+
+        .btn {
+            padding: 14px 24px; border: none; border-radius: 12px;
+            font-size: 15px; font-weight: 600; cursor: pointer;
+            transition: all 0.2s; display: inline-flex;
+            align-items: center; gap: 8px;
+        }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-primary { background: linear-gradient(135deg, var(--warning), var(--error)); color: white; }
+        .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4); }
+        .btn-secondary { background: rgba(255, 255, 255, 0.05); color: var(--text-muted); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .form-actions { display: flex; gap: 12px; margin-top: 20px; }
+        .form-actions .btn { flex: 1; }
+
+        .message {
+            padding: 16px; border-radius: 12px; text-align: center;
+            margin-top: 20px; display: flex; align-items: center;
+            justify-content: center; gap: 12px; animation: slideIn 0.3s;
+        }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .message.success { background: rgba(34, 197, 94, 0.1); color: var(--success); border: 1px solid rgba(34, 197, 94, 0.2); }
+        .message.error { background: rgba(239, 68, 68, 0.1); color: var(--error); border: 1px solid rgba(239, 68, 68, 0.2); }
+        .loading { display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--text-muted); padding: 40px; }
+        .spinner { width: 20px; height: 20px; border: 2px solid rgba(245, 158, 11, 0.1); border-top-color: var(--warning); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        @media (max-width: 768px) {
+            .card { padding: 24px; }
+            h1 { font-size: 26px; }
+            .nav-toggle { flex-direction: column; gap: 8px; }
+            .issue-type-grid { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/status/" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:16px;text-decoration:none;color:var(--text-muted);font-size:14px;font-weight:500;transition:color 0.2s;" onmouseover="this.style.color='var(--warning)'" onmouseout="this.style.color='var(--text-muted)'">
+            <img src="/request/images/garf_watching_tv.jpg" alt="Home" style="width:36px;height:36px;border-radius:10px;object-fit:cover;">
+            <span>&larr; Back to Hub</span>
+        </a>
+        <div class="nav-toggle">
+            <a href="/request/" class="nav-btn">
+                <i class="fas fa-plus-circle"></i> Request Media
+            </a>
+            <a href="/issues/" class="nav-btn active">
+                <i class="fas fa-exclamation-triangle"></i> Report Issue
+            </a>
+        </div>
+
+        <div class="header">
+            <div class="logo">
+                <img src="images/technical-difficulties.jpg" alt="Report Issue">
+            </div>
+            <h1>Report an Issue</h1>
+            <p class="subtitle">Let me know if something's not working right</p>
+        </div>
+
+        <!-- Media Issue -->
+        <div class="card">
+            <div class="section-title">
+                <i class="fas fa-film"></i> Media Issue
+            </div>
+            <div class="section-desc">
+                Report problems with specific movies or TV shows (buffering, audio, subtitles, etc.)
+            </div>
+            <div class="search-wrapper">
+                <div class="search-icon"><i class="fas fa-search"></i></div>
+                <input type="text" id="mediaSearch" placeholder="Search your library for the movie or show...">
+            </div>
+            <div id="mediaResults"></div>
+            <div id="mediaIssueForm"></div>
+        </div>
+
+        <!-- General Issue -->
+        <div class="card">
+            <div class="section-title">
+                <i class="fas fa-comment-dots"></i> General Issue or Feedback
+            </div>
+            <form id="generalIssueForm" onsubmit="submitGeneralIssue(event)">
+                <textarea id="issueDescription" placeholder="Please provide details about the issue or feedback..."></textarea>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    <i class="fas fa-paper-plane"></i> Submit Issue
+                </button>
+            </form>
+            <div id="generalMessage"></div>
+        </div>
+    </div>
+
+    <script>
+        const CONFIG = {
+            apiKey: 'MTc2MjQ4MzExMzkzMzA5ZGQwNWRiLTUwOWUtNDc1Ny05NmQ2LTRlMGE5MTU1ZTA3OQ==',
+            overseerrUrl: '/api/overseerr',
+            tmdbImageUrl: 'https://image.tmdb.org/t/p/w200'
+        };
+
+        let selectedMedia = null;
+        let searchTimeout;
+
+        const ISSUE_TYPES = [
+            { id: 'audio', icon: 'fa-volume-xmark', label: 'Audio Issue' },
+            { id: 'video', icon: 'fa-video-slash', label: 'Video Issue' },
+            { id: 'subtitles', icon: 'fa-closed-captioning', label: 'Subtitle Issue' },
+            { id: 'buffering', icon: 'fa-spinner', label: 'Buffering' },
+            { id: 'wrong', icon: 'fa-triangle-exclamation', label: 'Wrong File' },
+            { id: 'quality', icon: 'fa-image', label: 'Poor Quality' },
+            { id: 'other', icon: 'fa-ellipsis', label: 'Other' }
+        ];
+
+        document.getElementById('mediaSearch').addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            const query = e.target.value.trim();
+            if (query.length > 2) {
+                searchTimeout = setTimeout(() => searchMedia(query), 300);
+            } else if (query.length === 0) {
+                document.getElementById('mediaResults').innerHTML = '';
+                document.getElementById('mediaIssueForm').innerHTML = '';
+            }
+        });
+
+        document.getElementById('mediaSearch').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') searchMedia(e.target.value.trim());
+        });
+
+        async function searchMedia(query) {
+            if (!query) return;
+            const resultsDiv = document.getElementById('mediaResults');
+            resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Searching library...</div>';
+            try {
+                const response = await fetch(`${CONFIG.overseerrUrl}/v1/search?query=${encodeURIComponent(query)}`, {
+                    headers: { 'X-Api-Key': CONFIG.apiKey }
+                });
+                if (!response.ok) throw new Error('Search failed');
+                const data = await response.json();
+                if (data.results && data.results.length > 0) {
+                    const resultsWithStatus = await Promise.all(
+                        data.results.slice(0, 10).map(async (media) => {
+                            const status = await checkMediaStatus(media.mediaType, media.id);
+                            return { ...media, status };
+                        })
+                    );
+                    const availableResults = resultsWithStatus.filter(m => m.status === 5 || m.status === 4 || m.status === 3);
+                    if (availableResults.length > 0) {
+                        displayResults(availableResults);
+                    } else {
+                        resultsDiv.innerHTML = '<div class="message error"><i class="fas fa-exclamation-circle"></i>No matching content in library.</div>';
+                    }
+                } else {
+                    resultsDiv.innerHTML = '<div class="message error"><i class="fas fa-exclamation-circle"></i>No results found.</div>';
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = '<div class="message error"><i class="fas fa-exclamation-triangle"></i>Search failed.</div>';
+            }
+        }
+
+        async function checkMediaStatus(mediaType, tmdbId) {
+            try {
+                const response = await fetch(`${CONFIG.overseerrUrl}/v1/${mediaType}/${tmdbId}`, {
+                    headers: { 'X-Api-Key': CONFIG.apiKey }
+                });
+                if (!response.ok) return null;
+                const data = await response.json();
+                if (mediaType === 'tv' && data.mediaInfo) {
+                    const status = data.mediaInfo.status;
+                    if (status === 5 || status === 4 || status === 3) return 5;
+                }
+                return data.mediaInfo?.status || null;
+            } catch { return null; }
+        }
+
+        function displayResults(results) {
+            const resultsDiv = document.getElementById('mediaResults');
+            resultsDiv.innerHTML = '<div class="results-header"><i class="fas fa-hand-pointer"></i>Select content with an issue:</div>';
+            results.forEach(media => {
+                const item = document.createElement('div');
+                item.className = 'result-item';
+                item.onclick = () => showMediaIssueForm(media);
+                const posterPath = media.posterPath || media.poster_path;
+                const posterUrl = posterPath ? `${CONFIG.tmdbImageUrl}${posterPath}` : '';
+                const title = media.title || media.name;
+                const year = media.releaseDate || media.release_date || media.firstAirDate || media.first_air_date;
+                const yearDisplay = year ? new Date(year).getFullYear() : 'N/A';
+                const mediaType = media.mediaType === 'tv' ? 'TV Show' : 'Movie';
+                const mediaIcon = media.mediaType === 'tv' ? 'fa-tv' : 'fa-film';
+                item.innerHTML = `
+                    ${posterUrl ? `<img class="result-poster" src="${posterUrl}" alt="${title}">` : ''}
+                    <div class="result-info">
+                        <div class="result-title">${title}</div>
+                        <div class="result-meta">
+                            <span class="result-year">${yearDisplay}</span>
+                            <span class="result-type"><i class="fas ${mediaIcon}"></i> ${mediaType}</span>
+                            <span class="status-badge"><i class="fas fa-check-circle"></i> In Library</span>
+                        </div>
+                    </div>`;
+                resultsDiv.appendChild(item);
+            });
+        }
+
+        function showMediaIssueForm(media) {
+            selectedMedia = media;
+            const title = media.title || media.name;
+            const formDiv = document.getElementById('mediaIssueForm');
+            const issueTypesHTML = ISSUE_TYPES.map(type => `
+                <button type="button" class="issue-type-btn" data-type="${type.id}">
+                    <i class="fas ${type.icon}"></i><span>${type.label}</span>
+                </button>`).join('');
+            formDiv.innerHTML = `
+                <div class="issue-form">
+                    <div class="form-header"><i class="fas fa-bug"></i><span>Report issue: ${title}</span></div>
+                    <div><label style="color:var(--text);font-size:14px;font-weight:500;margin-bottom:8px;display:block;">What's the issue? *</label>
+                    <div class="issue-type-grid">${issueTypesHTML}</div></div>
+                    <div><label style="color:var(--text);font-size:14px;font-weight:500;margin-bottom:8px;display:block;">Additional details (optional)</label>
+                    <textarea id="mediaIssueDetails" placeholder="Describe the issue..."></textarea></div>
+                    <div class="form-actions">
+                        <button class="btn btn-secondary" onclick="cancelMediaIssue()"><i class="fas fa-times"></i> Cancel</button>
+                        <button class="btn btn-primary" onclick="submitMediaIssue()" id="mediaSubmitBtn"><i class="fas fa-paper-plane"></i> Submit</button>
+                    </div>
+                </div>`;
+            formDiv.querySelectorAll('.issue-type-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    formDiv.querySelectorAll('.issue-type-btn').forEach(b => b.classList.remove('selected'));
+                    this.classList.add('selected');
+                });
+            });
+        }
+
+        function cancelMediaIssue() {
+            document.getElementById('mediaIssueForm').innerHTML = '';
+            selectedMedia = null;
+        }
+
+        async function submitMediaIssue() {
+            const selectedTypeBtn = document.querySelector('.issue-type-btn.selected');
+            if (!selectedTypeBtn) { alert('Please select an issue type'); return; }
+            const submitBtn = document.getElementById('mediaSubmitBtn');
+            submitBtn.disabled = true;
+            const issueType = selectedTypeBtn.dataset.type;
+            const issueLabel = selectedTypeBtn.querySelector('span').textContent;
+            const details = document.getElementById('mediaIssueDetails').value.trim();
+            const title = selectedMedia.title || selectedMedia.name;
+            const mediaType = selectedMedia.mediaType === 'tv' ? 'TV Show' : 'Movie';
+            const year = selectedMedia.releaseDate || selectedMedia.release_date || selectedMedia.firstAirDate || selectedMedia.first_air_date;
+            const yearDisplay = year ? new Date(year).getFullYear() : '';
+            const formDiv = document.getElementById('mediaIssueForm');
+            formDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Submitting...</div>';
+            try {
+                const response = await fetch('/api/issue-report', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, year: yearDisplay, mediaType, issueType, issueLabel, details, tmdbId: selectedMedia.id })
+                });
+                if (response.ok) {
+                    formDiv.innerHTML = '<div class="message success"><i class="fas fa-check-circle"></i>Issue reported successfully!</div>';
+                    setTimeout(() => {
+                        document.getElementById('mediaSearch').value = '';
+                        document.getElementById('mediaResults').innerHTML = '';
+                        formDiv.innerHTML = '';
+                        selectedMedia = null;
+                    }, 3000);
+                } else { throw new Error('Failed'); }
+            } catch (error) {
+                formDiv.innerHTML = '<div class="message error"><i class="fas fa-exclamation-triangle"></i>Failed to submit. Try again.</div>';
+                setTimeout(() => showMediaIssueForm(selectedMedia), 2000);
+            }
+        }
+
+        async function submitGeneralIssue(event) {
+            event.preventDefault();
+            const description = document.getElementById('issueDescription').value.trim();
+            if (!description) return;
+            const messageDiv = document.getElementById('generalMessage');
+            messageDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Submitting...</div>';
+            const issueText = `User reported an issue with a Plex item\n${description}`;
+            try {
+                const response = await fetch('/api/ntfy', { method: 'POST', body: issueText });
+                if (response.ok) {
+                    messageDiv.innerHTML = '<div class="message success"><i class="fas fa-check-circle"></i>Issue submitted successfully!</div>';
+                    document.getElementById('generalIssueForm').reset();
+                    setTimeout(() => { messageDiv.innerHTML = ''; }, 3000);
+                } else { throw new Error('Failed'); }
+            } catch (error) {
+                messageDiv.innerHTML = '<div class="message error"><i class="fas fa-exclamation-triangle"></i>Failed to submit. Try again.</div>';
+            }
+        }
+    </script>
+</body>
+</html>

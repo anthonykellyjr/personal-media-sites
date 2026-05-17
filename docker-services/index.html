@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Docker Services Catalog</title>
+    <link rel="icon" href="/images/favicon.ico">
+    <link rel="stylesheet" href="styles.css"> 
+</head>
+<body>
+    <div class="container">
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('tower')">Ubuntu Tower</button>
+            <button class="tab" onclick="showTab('mac')">Ubuntu Mac</button>
+        </div>
+        
+        <div class="content">
+            <div class="header-row">
+                <h2 id="current-host">Ubuntu Tower Services</h2>
+            </div>
+            
+            <div id="tower" class="tab-content active">
+                <div class="table-wrapper">
+                    <table id="tower-table">
+                        <thead>
+                            <tr>
+                                <th>Service Name</th>
+                                <th>Active</th>
+                                <th>Port</th>
+                                <th>Website</th>
+                                <th>Domain</th>
+                                <th>Description</th>
+                                <th>CPU</th>
+                                <th>RAM</th>
+                                <th>Network</th>
+                                <th>Disk I/O</th>
+                                <th>GPU</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tower-active-tbody">
+                            <!-- Active services will be dynamically inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div id="tower-inactive-section" class="accordion-section" style="display: none;">
+                    <h3>Inactive Services</h3>
+                    <div id="tower-inactive-accordions">
+                        <!-- Inactive service accordions will be dynamically inserted here -->
+                    </div>
+                </div>
+            </div>
+            
+            <div id="mac" class="tab-content">
+                <div class="table-wrapper">
+                    <table id="mac-table">
+                        <thead>
+                            <tr>
+                                <th>Service Name</th>
+                                <th>Active</th>
+                                <th>Port</th>
+                                <th>Website</th>
+                                <th>Domain</th>
+                                <th>Description</th>
+                                <th>CPU</th>
+                                <th>RAM</th>
+                                <th>Network</th>
+                                <th>Disk I/O</th>
+                                <th>GPU</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mac-active-tbody">
+                            <!-- Active services will be dynamically inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div id="mac-inactive-section" class="accordion-section" style="display: none;">
+                    <h3>Inactive Services</h3>
+                    <div id="mac-inactive-accordions">
+                        <!-- Inactive service accordions will be dynamically inserted here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="button-group">
+        <button class="btn save-btn" id="saveBtn" disabled onclick="saveChanges()">Save Changes</button>
+        <button class="btn export-btn" onclick="exportToExcel()">Export to Excel</button>
+    </div>
+    
+    <div class="status-message" id="statusMessage"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="functions.js"></script>
+</body>
+</html>

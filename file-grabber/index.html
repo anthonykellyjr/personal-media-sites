@@ -1,0 +1,2190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebHead Media - Request</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+    <link rel="icon" type="image/x-icon" href="/file-grabber/images/favicon.ico">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary: #ec4899;
+            --dark: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.5);
+            --text: #e2e8f0;
+            --text-muted: #94a3b8;
+            --success: #22c55e;
+            --accent: #f59e0b;
+            --error: #ef4444;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--dark);
+            min-height: 100vh;
+            padding: 20px;
+            color: var(--text);
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background:
+                radial-gradient(circle at 20% 80%, rgba(236, 72, 153, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(99, 102, 241, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, rgba(139, 92, 246, 0.2) 0%, transparent 50%);
+            animation: float 20s ease-in-out infinite;
+            z-index: -1;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            33% { transform: translate(-20px, -20px) rotate(1deg); }
+            66% { transform: translate(20px, -10px) rotate(-1deg); }
+        }
+
+        .container { max-width: 900px; margin: 0 auto; }
+
+        .hero {
+            display: grid;
+            grid-template-columns: 1fr 1.6fr;
+            gap: 24px;
+            align-items: stretch;
+            margin-bottom: 28px;
+        }
+
+        .logo {
+            width: 100%;
+            aspect-ratio: 1;
+            max-width: 200px;
+            justify-self: center;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 20px rgba(99, 102, 241, 0.3);
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .logo img { width: 100%; height: 100%; object-fit: cover; border-radius: 20px; }
+
+        .hero-content {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border-radius: 20px;
+            padding: 24px 28px;
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.1);
+        }
+
+        .hero-content h1 {
+            font-size: 26px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            background: linear-gradient(135deg, var(--text), var(--primary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-content p { font-size: 15px; color: var(--text-muted); line-height: 1.6; }
+
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border-radius: 20px;
+            padding: 28px;
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.1);
+            margin-bottom: 24px;
+        }
+
+        .section-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .search-wrapper {
+            display: flex;
+            align-items: stretch;
+            background: rgba(15, 23, 42, 0.6);
+            border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 14px;
+            transition: all 0.3s;
+        }
+
+        .search-wrapper:focus-within {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .search-icon {
+            display: flex;
+            align-items: center;
+            padding: 0 18px;
+            color: var(--text-muted);
+            font-size: 16px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 16px 18px;
+            background: transparent;
+            border: none;
+            color: var(--text);
+            font-size: 15px;
+            outline: none;
+        }
+
+        input[type="text"]::placeholder { color: var(--text-muted); opacity: 0.8; }
+
+        /* Local Plex toggle */
+        .local-toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 14px;
+            padding-top: 14px;
+            border-top: 1px solid rgba(255,255,255,0.06);
+        }
+
+        .local-toggle-label {
+            font-size: 13px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .local-toggle-label i { color: #818cf8; font-size: 12px; }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 22px;
+            flex-shrink: 0;
+        }
+
+        .switch input { opacity: 0; width: 0; height: 0; }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(71, 85, 105, 0.6);
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: 0.3s;
+            border-radius: 22px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px; width: 16px;
+            left: 2px; bottom: 2px;
+            background: #94a3b8;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider { background: rgba(99, 102, 241, 0.5); border-color: rgba(99, 102, 241, 0.4); }
+        input:checked + .slider:before { transform: translateX(18px); background: #818cf8; }
+
+        /* Tabs */
+        .tab-row {
+            display: flex;
+            gap: 0;
+            margin-bottom: 16px;
+            border-bottom: 2px solid rgba(255,255,255,0.08);
+        }
+
+        .tab-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .tab-btn:hover { color: var(--text); }
+        .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Browse: genre chips */
+        .genre-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .genre-chip {
+            padding: 8px 16px;
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 20px;
+            color: var(--text);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .genre-chip:hover {
+            background: rgba(99, 102, 241, 0.25);
+            border-color: var(--primary);
+            transform: translateY(-1px);
+        }
+
+        .genre-chip.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        /* Browse: list search */
+        .browse-search-wrapper {
+            display: flex;
+            align-items: stretch;
+            background: rgba(15, 23, 42, 0.6);
+            border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 14px;
+            transition: all 0.3s;
+            margin-bottom: 16px;
+        }
+
+        .browse-search-wrapper:focus-within {
+            border-color: var(--secondary);
+            box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.1);
+        }
+
+        /* Browse: movie grid */
+        .browse-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 14px;
+            margin-top: 12px;
+        }
+
+        .browse-card {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .browse-card:hover {
+            transform: translateY(-3px);
+            border-color: var(--primary);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+        }
+
+        .browse-card img {
+            width: 100%;
+            aspect-ratio: 2/3;
+            object-fit: cover;
+            display: block;
+        }
+
+        .browse-card-info {
+            padding: 10px;
+        }
+
+        .browse-card-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 2px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .browse-card-year {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .browse-card-rating {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            font-size: 11px;
+            color: var(--accent);
+            margin-top: 4px;
+        }
+
+        /* Browse: list results */
+        .list-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 14px;
+            margin-bottom: 8px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .list-item:hover {
+            border-color: var(--secondary);
+            transform: translateY(-1px);
+        }
+
+        .list-item-name { flex: 1; font-weight: 500; font-size: 14px; }
+        .list-item-count { font-size: 12px; color: var(--text-muted); }
+        .list-item-user { font-size: 11px; color: var(--text-muted); margin-left: 12px; }
+
+        .load-more-btn {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin-top: 14px;
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 12px;
+            color: var(--primary);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .load-more-btn:hover { background: rgba(99, 102, 241, 0.2); }
+
+        /* Activity feed */
+        .activity-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border-radius: 20px;
+            padding: 20px 24px;
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.1);
+            margin-bottom: 24px;
+        }
+
+        .activity-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+        }
+
+        .activity-header h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .activity-count {
+            font-size: 12px;
+            color: var(--text-muted);
+            background: rgba(99, 102, 241, 0.15);
+            padding: 2px 10px;
+            border-radius: 12px;
+        }
+
+        .activity-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 14px;
+            margin-bottom: 8px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            gap: 12px;
+        }
+
+        .activity-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .activity-icon.downloading { background: rgba(99, 102, 241, 0.2); color: var(--primary); }
+        .activity-icon.transcoding { background: rgba(245, 158, 11, 0.2); color: var(--accent); }
+        .activity-icon.uploading { background: rgba(236, 72, 153, 0.2); color: var(--secondary); }
+        .activity-icon.done { background: rgba(34, 197, 94, 0.2); color: var(--success); }
+        .activity-icon.error { background: rgba(239, 68, 68, 0.2); color: var(--error); }
+        .activity-icon.queued { background: rgba(148, 163, 184, 0.2); color: var(--text-muted); }
+
+        .activity-info { flex: 1; min-width: 0; }
+        .activity-title { font-size: 14px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .activity-detail { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+        .activity-progress {
+            width: 80px;
+            height: 6px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 3px;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .activity-progress-fill {
+            height: 100%;
+            background: var(--primary);
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+
+        .activity-status {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 6px;
+            flex-shrink: 0;
+            text-transform: uppercase;
+        }
+
+        .activity-status.downloading { background: rgba(99, 102, 241, 0.15); color: var(--primary); }
+        .activity-status.transcoding { background: rgba(245, 158, 11, 0.15); color: var(--accent); }
+        .activity-status.uploading { background: rgba(236, 72, 153, 0.15); color: var(--secondary); }
+        .activity-status.done { background: rgba(34, 197, 94, 0.15); color: var(--success); }
+        .activity-status.error { background: rgba(239, 68, 68, 0.15); color: var(--error); }
+
+        .activity-empty {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        .activity-page-btns {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .activity-page-btn {
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            color: var(--primary);
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .activity-page-btn:hover { background: rgba(99, 102, 241, 0.2); }
+        .activity-page-btn:disabled { opacity: 0.3; cursor: default; }
+
+        @media (max-width: 768px) {
+            .browse-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
+            .activity-item { flex-wrap: wrap; }
+            .activity-progress { width: 100%; order: 10; }
+        }
+
+        #results { margin-top: 16px; }
+
+        .results-header {
+            color: var(--text-muted);
+            font-size: 14px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .result-item {
+            display: flex;
+            align-items: center;
+            padding: 14px;
+            margin-bottom: 10px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .result-item:hover {
+            transform: translateY(-2px);
+            border-color: var(--primary);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .result-poster { width: 60px; height: 90px; object-fit: cover; border-radius: 8px; margin-right: 14px; }
+        .result-info { flex: 1; }
+        .result-title { color: var(--text); font-weight: 600; font-size: 15px; margin-bottom: 4px; }
+        .result-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .result-year { color: var(--text-muted); font-size: 13px; }
+
+        .result-type {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--primary);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .result-type.tv {
+            background: rgba(236, 72, 153, 0.1);
+            color: var(--secondary);
+            border-color: rgba(236, 72, 153, 0.2);
+        }
+
+        /* Grab list panel */
+        .grab-panel { margin-top: 16px; }
+
+        .grab-panel-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .grab-panel-header .back-btn {
+            background: none;
+            border: 1px solid rgba(255,255,255,0.15);
+            color: var(--text-muted);
+            padding: 6px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        .grab-panel-header .back-btn:hover { border-color: var(--primary); color: var(--text); }
+
+        .grab-panel-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .grab-item {
+            display: flex;
+            align-items: flex-start;
+            padding: 14px;
+            margin-bottom: 8px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            transition: all 0.2s;
+            gap: 12px;
+        }
+
+        .grab-item:hover { border-color: rgba(255,255,255,0.2); }
+        .grab-item.blocked { opacity: 0.4; }
+
+        .grab-info { flex: 1; min-width: 0; }
+
+        .grab-name {
+            font-size: 12px;
+            color: var(--text-muted);
+            word-break: break-word;
+            margin-bottom: 6px;
+            line-height: 1.3;
+            font-family: 'Courier New', monospace;
+        }
+
+        .grab-badges {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 2px 7px;
+            border-radius: 5px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .badge-size { background: rgba(99, 102, 241, 0.15); color: #818cf8; }
+        .badge-quality { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
+        .badge-codec { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+        .badge-codec.bad { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+        .badge-indexer { background: rgba(236, 72, 153, 0.15); color: #f472b6; }
+        .badge-grabs { background: rgba(14, 165, 233, 0.15); color: #38bdf8; }
+
+        .badge-score {
+            padding: 2px 8px;
+            border-radius: 5px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        .score-great { background: rgba(34, 197, 94, 0.2); color: #4ade80; }
+        .score-good { background: rgba(99, 102, 241, 0.2); color: #818cf8; }
+        .score-ok { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+        .score-bad { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+
+        .grab-dl-btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border: none;
+            color: white;
+            transition: all 0.2s;
+            white-space: nowrap;
+            flex-shrink: 0;
+            align-self: center;
+        }
+
+        .grab-dl-btn:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(99, 102, 241, 0.4); }
+        .grab-dl-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        .grab-blocked-label {
+            font-size: 11px;
+            color: var(--error);
+            font-weight: 600;
+            padding: 8px 12px;
+            align-self: center;
+            white-space: nowrap;
+        }
+
+        /* Progress panel */
+        .progress-panel { display: none; margin-bottom: 24px; }
+        .progress-panel.visible { display: block; }
+
+        .progress-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .progress-title i { color: var(--primary); }
+
+        .pipeline { display: flex; align-items: flex-start; gap: 0; }
+
+        .pipeline-stage { flex: 1; text-align: center; position: relative; }
+
+        .pipeline-stage:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            top: 22px; right: -10%;
+            width: 20%; height: 2px;
+            background: rgba(255,255,255,0.1);
+        }
+
+        .pipeline-stage.completed:not(:last-child)::after { background: var(--success); }
+        .pipeline-stage.active:not(:last-child)::after { background: linear-gradient(90deg, var(--primary), rgba(255,255,255,0.1)); }
+
+        .stage-icon {
+            width: 44px; height: 44px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 8px;
+            font-size: 18px;
+            background: rgba(255,255,255,0.05);
+            border: 2px solid rgba(255,255,255,0.1);
+            color: var(--text-muted);
+            transition: all 0.3s;
+        }
+
+        .pipeline-stage.active .stage-icon {
+            background: rgba(99, 102, 241, 0.15);
+            border-color: var(--primary);
+            color: var(--primary);
+            animation: pulse-border 2s ease-in-out infinite;
+        }
+
+        .pipeline-stage.completed .stage-icon {
+            background: rgba(34, 197, 94, 0.15);
+            border-color: var(--success);
+            color: var(--success);
+        }
+
+        @keyframes pulse-border {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.3); }
+            50% { box-shadow: 0 0 0 6px rgba(99, 102, 241, 0); }
+        }
+
+        .stage-label { font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; }
+        .pipeline-stage.active .stage-label { color: var(--text); }
+        .pipeline-stage.completed .stage-label { color: var(--success); }
+        .stage-detail { font-size: 11px; color: var(--text-muted); min-height: 16px; }
+
+        .progress-bar-wrap {
+            width: 80%; margin: 6px auto 0; height: 4px;
+            background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%; background: var(--primary);
+            border-radius: 2px; transition: width 0.5s ease; width: 0%;
+        }
+
+        .progress-done {
+            display: none; text-align: center; padding: 16px;
+            color: var(--success); font-weight: 600; font-size: 15px;
+        }
+
+        .progress-done.visible { display: flex; align-items: center; justify-content: center; gap: 10px; }
+
+        /* Modals */
+        .modal-overlay {
+            display: none;
+            position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+            z-index: 500;
+            align-items: center; justify-content: center;
+        }
+
+        .modal-overlay.visible { display: flex; }
+
+        .modal {
+            background: #1e293b;
+            border-radius: 20px;
+            padding: 28px;
+            max-width: 480px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.1);
+            animation: modalIn 0.2s ease;
+        }
+
+        @keyframes modalIn {
+            from { opacity: 0; transform: scale(0.95) translateY(10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .modal-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .modal-header h3 { font-size: 18px; font-weight: 700; color: var(--text); }
+
+        .modal-close {
+            background: none; border: none; color: var(--text-muted);
+            font-size: 20px; cursor: pointer; padding: 4px 8px;
+            border-radius: 8px; transition: all 0.2s;
+        }
+
+        .modal-close:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+
+        .modal-body { font-size: 14px; color: var(--text-muted); line-height: 1.6; margin-bottom: 20px; }
+        .modal-body strong { color: var(--text); }
+
+        .season-list { display: grid; gap: 8px; margin-bottom: 20px; }
+
+        .season-item {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px 14px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px; cursor: pointer; transition: all 0.2s;
+        }
+
+        .season-item:hover { border-color: var(--primary); }
+
+        .season-item input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; }
+        .season-item label { flex: 1; cursor: pointer; font-size: 14px; color: var(--text); }
+        .season-item .episode-count { font-size: 12px; color: var(--text-muted); }
+
+        .season-actions, .modal-actions { display: flex; gap: 10px; }
+
+        .season-actions button, .modal-actions button {
+            flex: 1; padding: 12px; border-radius: 10px;
+            font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+        }
+
+        .btn-cancel {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: var(--text-muted);
+        }
+
+        .btn-cancel:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+
+        .btn-request, .btn-danger {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border: none; color: white;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+        }
+
+        .btn-request:hover, .btn-danger:hover { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4); }
+        .btn-request:disabled, .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        .message {
+            padding: 14px 16px; border-radius: 10px; text-align: center;
+            display: flex; align-items: center; justify-content: center;
+            gap: 10px; animation: slideIn 0.3s; font-size: 14px;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.success { background: rgba(34, 197, 94, 0.1); color: var(--success); border: 1px solid rgba(34, 197, 94, 0.2); }
+        .message.error { background: rgba(239, 68, 68, 0.1); color: var(--error); border: 1px solid rgba(239, 68, 68, 0.2); }
+        .message.info { background: rgba(99, 102, 241, 0.1); color: var(--primary); border: 1px solid rgba(99, 102, 241, 0.2); }
+
+        .loading {
+            display: flex; align-items: center; justify-content: center;
+            gap: 12px; color: var(--text-muted); padding: 30px; font-size: 14px;
+        }
+
+        .spinner {
+            width: 18px; height: 18px;
+            border: 2px solid rgba(99, 102, 241, 0.1);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .toast-container {
+            position: fixed; bottom: 24px; right: 24px; z-index: 1000;
+            display: flex; flex-direction: column; gap: 10px;
+        }
+
+        .toast {
+            padding: 14px 20px; border-radius: 12px;
+            display: flex; align-items: center; gap: 10px;
+            font-size: 14px; font-weight: 500;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            animation: toastIn 0.3s ease; max-width: 350px;
+        }
+
+        .toast.success { background: linear-gradient(135deg, #166534, #15803d); color: white; }
+        .toast.error { background: linear-gradient(135deg, #991b1b, #b91c1c); color: white; }
+        .toast.info { background: linear-gradient(135deg, #1e40af, #2563eb); color: white; }
+
+        @keyframes toastIn { from { opacity: 0; transform: translateX(100px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes toastOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(100px); } }
+
+        @media (max-width: 768px) {
+            .container { padding: 0; }
+            .hero { grid-template-columns: 1fr; text-align: center; }
+            .logo { margin: 0 auto; width: 140px; height: 140px; }
+            .hero-content { padding: 20px; }
+            .hero-content h1 { font-size: 22px; }
+            .card { padding: 20px; }
+            .pipeline { flex-direction: column; gap: 12px; }
+            .pipeline-stage:not(:last-child)::after { display: none; }
+            .toast-container { left: 16px; right: 16px; bottom: 16px; }
+            .toast { max-width: none; }
+            .grab-name { font-size: 11px; }
+            .grab-item { flex-direction: column; align-items: stretch; }
+            .grab-dl-btn { align-self: stretch; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="hero">
+            <div class="logo">
+                <img src="/file-grabber/images/garf_watching_tv.jpg" alt="WebHead Media">
+            </div>
+            <div class="hero-content">
+                <h1>Request Media</h1>
+                <p>
+                    Search for a movie, pick a release, and it downloads + transcodes automatically to MP4
+                    If no one is online, the movie will automatically upload to Plex. Otherwise, it will hold the
+                    MP4s in a "pool" that get uploaded to Plex overnight.
+
+                    Tip: The sweet spot for a 2 hour movie is usually between 5 and 8.5 GB.
+                </p>
+            </div>
+        </div>
+
+        <!-- Progress panel (above search so it's visible immediately) -->
+        <div class="card progress-panel" id="progressPanel">
+            <div class="progress-title">
+                <i class="fas fa-tasks"></i>
+                <span id="progressTitleText">Processing...</span>
+            </div>
+            <div class="pipeline" id="pipeline">
+                <div class="pipeline-stage" id="stage-download">
+                    <div class="stage-icon"><i class="fas fa-download"></i></div>
+                    <div class="stage-label">Download</div>
+                    <div class="stage-detail" id="download-detail">Waiting...</div>
+                    <div class="progress-bar-wrap" id="download-bar-wrap" style="display:none;">
+                        <div class="progress-bar-fill" id="download-bar"></div>
+                    </div>
+                </div>
+                <div class="pipeline-stage" id="stage-transcode">
+                    <div class="stage-icon"><i class="fas fa-cogs"></i></div>
+                    <div class="stage-label">Transcode</div>
+                    <div class="stage-detail" id="transcode-detail">Waiting...</div>
+                </div>
+                <div class="pipeline-stage" id="stage-upload">
+                    <div class="stage-icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                    <div class="stage-label">Upload</div>
+                    <div class="stage-detail" id="upload-detail">Waiting...</div>
+                </div>
+            </div>
+            <div class="progress-done" id="progressDone">
+                <i class="fas fa-check-circle"></i>
+                <span id="progressDoneText">All done!</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="tab-row">
+                <button class="tab-btn active" onclick="switchTab('search')"><i class="fas fa-search"></i> Search</button>
+                <button class="tab-btn" onclick="switchTab('browse')"><i class="fas fa-compass"></i> Browse Lists</button>
+            </div>
+
+            <div class="tab-content active" id="tab-search">
+                <div class="search-wrapper">
+                    <div class="search-icon"><i class="fas fa-film"></i></div>
+                    <input type="text" id="search" placeholder="Search for a movie or TV show...">
+                </div>
+                <div class="local-toggle-row">
+                    <label class="local-toggle-label" for="localPlexToggle">
+                        <i class="fas fa-tv"></i>
+                        Also upload to Watch Party Plex
+                    </label>
+                    <label class="switch">
+                        <input type="checkbox" id="localPlexToggle">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div id="results"></div>
+            </div>
+
+            <div class="tab-content" id="tab-browse">
+                <div class="browse-search-wrapper">
+                    <div class="search-icon"><i class="fas fa-list"></i></div>
+                    <input type="text" id="browseSearch" placeholder="Search for a list (e.g. 'best horror 2024')...">
+                </div>
+                <div class="genre-chips" id="genreChips"></div>
+                <div id="browseResults"></div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Activity feed -->
+    <div class="activity-card" id="activityPanel" style="display:none;">
+        <div class="activity-header">
+            <h3><i class="fas fa-bolt"></i> Activity</h3>
+            <span class="activity-count" id="activityCount">0</span>
+        </div>
+        <div id="activityList"></div>
+        <div class="activity-page-btns" id="activityPager" style="display:none;">
+            <button class="activity-page-btn" id="activityPrev" onclick="activityPage(-1)"><i class="fas fa-chevron-left"></i></button>
+            <button class="activity-page-btn" id="activityNext" onclick="activityPage(1)"><i class="fas fa-chevron-right"></i></button>
+        </div>
+    </div>
+
+    <!-- Season picker modal -->
+    <div class="modal-overlay" id="seasonModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="seasonModalTitle">Select Seasons</h3>
+                <button class="modal-close" onclick="closeSeasonModal()">&times;</button>
+            </div>
+            <div class="season-list" id="seasonList"></div>
+            <div class="season-actions">
+                <button class="btn-cancel" onclick="closeSeasonModal()">Cancel</button>
+                <button class="btn-request" id="seasonRequestBtn" onclick="submitSeasonRequest()">
+                    <i class="fas fa-plus-circle"></i> Request Selected
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Radarr duplicate modal -->
+    <div class="modal-overlay" id="radarrModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Existing Radarr Entry</h3>
+                <button class="modal-close" onclick="closeRadarrModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="radarrModalBody"></div>
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeRadarrModal()">Cancel</button>
+                <button class="btn-danger" id="radarrDeleteBtn" onclick="confirmRadarrDelete()">
+                    <i class="fas fa-trash"></i> Delete &amp; Recreate
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        // ============================================================
+        // CONFIGURATION
+        // ============================================================
+        const CONFIG = {
+            seerrApiKey: 'MTc3MTIzMDgwMzQ1MzYyYTg4YTNlLTE0NGMtNDY2OS04MTM2LTQxNzQxMDJjY2FhNg==',
+            prowlarrApiKey: 'ec8b25e1839e4243a569c3768745b8e0',
+            seerrBase: '/api/v1',
+            prowlarrBase: '/api/prowlarr',
+            tmdbImageUrl: 'https://image.tmdb.org/t/p/w200',
+            towerQueueUrl: '/api/tower'
+        };
+
+        let searchTimeout;
+        let progressInterval = null;
+        let currentTvMedia = null;
+        let currentMovieMedia = null;
+        let pendingGrabData = null;  // holds grab data while waiting for Radarr check
+
+        // ============================================================
+        // TOAST
+        // ============================================================
+        function showToast(message, type = 'info', duration = 4000) {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            const icons = { success: 'fa-check-circle', error: 'fa-exclamation-circle', info: 'fa-info-circle' };
+            toast.innerHTML = `<i class="fas ${icons[type] || icons.info}"></i><span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.animation = 'toastOut 0.3s ease forwards';
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+
+        // ============================================================
+        // RELEASE FILTERING & SCORING
+        // ============================================================
+        function scoreRelease(name, sizeBytes) {
+            const n = name.toUpperCase();
+            let score = 50;  // base score
+            let blocked = false;
+            let blockReason = '';
+
+            // --- BLOCKED ---
+            if (n.includes('YTS') || n.includes('YIFY')) {
+                blocked = true; blockReason = 'YTS/YIFY'; score = -10000;
+            }
+            if (n.includes('AV1') && !n.includes('AVID')) {
+                blocked = true; blockReason = 'AV1 codec'; score = -10000;
+            }
+
+            // --- RESOLUTION ---
+            const is1080 = n.includes('1080P');
+            const is720 = n.includes('720P');
+            const is4k = n.includes('2160P') || n.includes('4K') || n.includes('UHD');
+
+            if (is1080) {
+                score += 15;
+            } else if (is4k) {
+                blocked = true; blockReason = '2160p/4K'; score = -10000;
+            } else if (is720) {
+                blocked = true; blockReason = '720p'; score = -10000;
+            }
+
+            // --- CODEC ---
+            const isH264 = n.includes('X264') || n.includes('H264') || n.includes('H.264') || n.includes('AVC');
+            const isH265 = n.includes('X265') || n.includes('H265') || n.includes('H.265') || n.includes('HEVC');
+            const isRemux = n.includes('REMUX');
+
+            if (isH264) score += 15;
+            if (isH265) score -= 10;  // will need re-encoding
+            if (isRemux) score -= 5;  // huge files
+
+            // --- SIZE (prefer 4-10GB, accept up to 20GB, block over 20GB) ---
+            const gb = sizeBytes / (1024 * 1024 * 1024);
+            if (gb > 20) {
+                blocked = true; blockReason = 'Over 20 GB'; score = -10000;
+            } else if (gb >= 4 && gb <= 10) {
+                score += 15;  // ideal range
+                if (gb >= 5 && gb <= 8) score += 5;  // sweet spot
+            } else if (gb > 10 && gb <= 20) {
+                score += 5;  // acceptable, large but within limit
+            } else if (gb >= 2 && gb < 4) {
+                score -= 5;  // small but usable
+            } else if (gb >= 1 && gb < 2) {
+                score -= 15;  // too small
+            } else if (gb < 1 && gb > 0) {
+                score -= 25;  // garbage quality
+            }
+
+            // --- SOURCE ---
+            if (n.includes('BLURAY') || n.includes('BLU-RAY')) score += 3;
+            if (n.includes('WEB-DL') || n.includes('WEBDL')) score += 2;
+            if (n.includes('WEBRIP') || n.includes('WEB-RIP')) score += 1;
+
+            return { score, blocked, blockReason };
+        }
+
+        function getScoreClass(score) {
+            if (score >= 80) return 'score-great';
+            if (score >= 60) return 'score-good';
+            if (score >= 40) return 'score-ok';
+            return 'score-bad';
+        }
+
+        function getScoreLabel(score) {
+            if (score >= 80) return 'A';
+            if (score >= 70) return 'B+';
+            if (score >= 60) return 'B';
+            if (score >= 50) return 'C+';
+            if (score >= 40) return 'C';
+            if (score >= 30) return 'D';
+            return 'F';
+        }
+
+        // ============================================================
+        // HELPERS
+        // ============================================================
+        function formatSize(bytes) {
+            if (!bytes || bytes === 0) return '? GB';
+            const gb = bytes / (1024 * 1024 * 1024);
+            if (gb >= 1) return gb.toFixed(1) + ' GB';
+            return (bytes / (1024 * 1024)).toFixed(0) + ' MB';
+        }
+
+        function parseQuality(name) {
+            const n = name.toUpperCase();
+            if (n.includes('2160P') || n.includes('4K') || n.includes('UHD')) return '4K';
+            if (n.includes('1080P')) return '1080p';
+            if (n.includes('720P')) return '720p';
+            if (n.includes('REMUX')) return 'Remux';
+            if (n.includes('BLURAY') || n.includes('BLU-RAY')) return 'BluRay';
+            if (n.includes('WEB-DL') || n.includes('WEBDL')) return 'WEB-DL';
+            if (n.includes('WEBRIP') || n.includes('WEB-RIP')) return 'WEBRip';
+            if (n.includes('HDTV')) return 'HDTV';
+            return '';
+        }
+
+        function parseCodec(name) {
+            const n = name.toUpperCase();
+            if (n.includes('X265') || n.includes('H265') || n.includes('H.265') || n.includes('HEVC')) return 'x265';
+            if (n.includes('X264') || n.includes('H264') || n.includes('H.264') || n.includes('AVC')) return 'x264';
+            if (n.includes('AV1') && !n.includes('AVID')) return 'AV1';
+            if (n.includes('XVID')) return 'XviD';
+            return '';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ============================================================
+        // SEARCH — Seerr for movie/TV identification
+        // ============================================================
+        document.getElementById('search').addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            const query = e.target.value.trim();
+            if (query.length > 1) {
+                searchTimeout = setTimeout(() => searchMedia(query), 250);
+            } else if (query.length === 0) {
+                document.getElementById('results').innerHTML = '';
+            }
+        });
+
+        document.getElementById('search').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const query = e.target.value.trim();
+                if (query.length > 0) searchMedia(query);
+            }
+        });
+
+        async function searchMedia(query) {
+            if (!query) return;
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Searching...</div>';
+
+            try {
+                const response = await fetch(
+                    `${CONFIG.seerrBase}/search?query=${encodeURIComponent(query)}&language=en`,
+                    { headers: { 'X-Api-Key': CONFIG.seerrApiKey } }
+                );
+
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+
+                if (data.results && data.results.length > 0) {
+                    const media = data.results.filter(r => r.mediaType === 'movie' || r.mediaType === 'tv');
+                    if (media.length === 0) {
+                        resultsDiv.innerHTML = '<div class="message info"><i class="fas fa-info-circle"></i>No movies or TV shows found.</div>';
+                        return;
+                    }
+                    displayResults(media.sort((a, b) => (b.popularity || 0) - (a.popularity || 0)));
+                } else {
+                    resultsDiv.innerHTML = '<div class="message info"><i class="fas fa-info-circle"></i>No results found.</div>';
+                }
+            } catch (error) {
+                console.error('Search error:', error);
+                resultsDiv.innerHTML = '<div class="message error"><i class="fas fa-exclamation-triangle"></i>Search unavailable.</div>';
+            }
+        }
+
+        function displayResults(results) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<div class="results-header"><i class="fas fa-hand-pointer"></i>Select a title:</div>';
+
+            results.slice(0, 8).forEach(media => {
+                const item = document.createElement('div');
+                item.className = 'result-item';
+                item.onclick = () => handleMediaClick(media);
+
+                const posterPath = media.posterPath || media.poster_path;
+                const posterUrl = posterPath
+                    ? `${CONFIG.tmdbImageUrl}${posterPath}`
+                    : 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iOTAiIHZpZXdCb3g9IjAgMCA2MCA5MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNjAiIGhlaWdodD0iOTAiIHJ4PSI4IiBmaWxsPSIjMUYyOTM3Ii8+PHBhdGggZD0iTTI1IDM1TDM1IDQ1TDI1IDU1IiBzdHJva2U9IiM0NzU1NjkiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+PC9zdmc+';
+
+                const title = media.title || media.name;
+                const isTV = media.mediaType === 'tv';
+                const dateStr = isTV ? (media.firstAirDate || media.first_air_date) : (media.releaseDate || media.release_date);
+                const yearDisplay = dateStr ? new Date(dateStr).getFullYear() : '';
+
+                item.innerHTML = `
+                    <img class="result-poster" src="${posterUrl}" alt="${escapeHtml(title)}" onerror="this.style.display='none'">
+                    <div class="result-info">
+                        <div class="result-title">${escapeHtml(title)}</div>
+                        <div class="result-meta">
+                            ${yearDisplay ? `<span class="result-year">${yearDisplay}</span>` : ''}
+                            <span class="${isTV ? 'result-type tv' : 'result-type'}"><i class="fas ${isTV ? 'fa-tv' : 'fa-film'}"></i> ${isTV ? 'TV' : 'Movie'}</span>
+                        </div>
+                    </div>
+                `;
+                resultsDiv.appendChild(item);
+            });
+        }
+
+        // ============================================================
+        // MEDIA CLICK
+        // ============================================================
+        function handleMediaClick(media) {
+            if (media.mediaType === 'tv') {
+                openSeasonModal(media);
+            } else {
+                fetchGrabs(media);
+            }
+        }
+
+        // ============================================================
+        // PROWLARR GRAB SEARCH
+        // ============================================================
+        async function fetchGrabs(media) {
+            const title = media.title || media.name;
+            const dateStr = media.releaseDate || media.release_date;
+            const year = dateStr ? new Date(dateStr).getFullYear() : '';
+            const tmdbId = media.id;
+
+            currentMovieMedia = { title, year: year.toString(), tmdbId, media };
+
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Searching for available releases...</div>';
+
+            try {
+                // Fetch IMDB ID from Seerr for precise Prowlarr search
+                let imdbId = '';
+                try {
+                    const detailResp = await fetch(`${CONFIG.seerrBase}/movie/${tmdbId}`, {
+                        headers: { 'X-Api-Key': CONFIG.seerrApiKey }
+                    });
+                    if (detailResp.ok) {
+                        const detail = await detailResp.json();
+                        imdbId = (detail.externalIds && detail.externalIds.imdbId) || '';
+                    }
+                } catch (e) { console.warn('IMDB lookup failed:', e); }
+
+                // Search Prowlarr — use IMDB ID if available, fall back to text + year
+                const searchQuery = imdbId
+                    ? `{ImDbId:${imdbId}}`
+                    : (year ? `${title} ${year}` : title);
+                const categories = [2000,2010,2020,2030,2040,2045,2050,2070,2080];
+                const catParams = categories.map(c => `categories=${c}`).join('&');
+
+                const resp = await fetch(`/api/prowlarr/v1/search?query=${encodeURIComponent(searchQuery)}&type=movie&${catParams}&limit=100`, {
+                    headers: { 'X-Api-Key': CONFIG.prowlarrApiKey }
+                });
+                if (!resp.ok) throw new Error(`Prowlarr HTTP ${resp.status}`);
+                const results = await resp.json();
+
+                const grabs = results.map(r => ({
+                    title: r.title || '',
+                    size: r.size || 0,
+                    downloadUrl: (r.downloadUrl || '').replace('http://localhost:9696', 'http://prowlarr:9696'),
+                    guid: r.guid || '',
+                    indexer: r.indexer || 'Unknown',
+                    grabs: r.grabs || 0,
+                    categories: (r.categories || []).map(c => c.id),
+                }));
+
+                if (!grabs || grabs.length === 0) {
+                    resultsDiv.innerHTML = `
+                        <div class="grab-panel">
+                            <div class="grab-panel-header">
+                                <button class="back-btn" onclick="backToSearch()"><i class="fas fa-arrow-left"></i> Back</button>
+                                <span class="grab-panel-title">${escapeHtml(title)} (${year})</span>
+                            </div>
+                            <div class="message info"><i class="fas fa-info-circle"></i>No releases found.</div>
+                        </div>`;
+                    return;
+                }
+
+                // Score and sort grabs
+                const scored = grabs.map(g => {
+                    const s = scoreRelease(g.title || '', g.size || 0);
+                    return { ...g, _score: s.score, _blocked: s.blocked, _blockReason: s.blockReason };
+                });
+
+                // Sort: non-blocked first, then by grabs descending
+                scored.sort((a, b) => {
+                    if (a._blocked !== b._blocked) return a._blocked ? 1 : -1;
+                    return (b.grabs || 0) - (a.grabs || 0);
+                });
+
+                displayGrabs(scored, title, year);
+
+            } catch (error) {
+                console.error('Prowlarr search error:', error);
+                resultsDiv.innerHTML = `
+                    <div class="grab-panel">
+                        <div class="grab-panel-header">
+                            <button class="back-btn" onclick="backToSearch()"><i class="fas fa-arrow-left"></i> Back</button>
+                            <span class="grab-panel-title">${escapeHtml(title)}</span>
+                        </div>
+                        <div class="message error"><i class="fas fa-exclamation-triangle"></i>Could not search for releases.</div>
+                    </div>`;
+            }
+        }
+
+        function displayGrabs(grabs, title, year) {
+            const resultsDiv = document.getElementById('results');
+            const nonBlocked = grabs.filter(g => !g._blocked).length;
+
+            let html = `
+                <div class="grab-panel">
+                    <div class="grab-panel-header">
+                        <button class="back-btn" onclick="backToSearch()"><i class="fas fa-arrow-left"></i> Back</button>
+                        <span class="grab-panel-title">${escapeHtml(title)} (${year}) — ${nonBlocked} release${nonBlocked !== 1 ? 's' : ''}</span>
+                    </div>`;
+
+            grabs.slice(0, 25).forEach((grab, idx) => {
+                const grabName = grab.title || 'Unknown';
+                const size = formatSize(grab.size || 0);
+                const indexer = grab.indexer || 'Unknown';
+                const grabCount = grab.grabs || 0;
+                const quality = parseQuality(grabName);
+                const codec = parseCodec(grabName);
+                const grabUrl = grab.downloadUrl || grab.guid || '';
+                const score = grab._score;
+                const blocked = grab._blocked;
+                const blockReason = grab._blockReason;
+                const scoreClass = getScoreClass(score);
+                const scoreLabel = getScoreLabel(score);
+                const codecBad = codec === 'x265' || codec === 'AV1';
+
+                html += `
+                    <div class="grab-item ${blocked ? 'blocked' : ''}">
+                        <div class="grab-info">
+                            <div class="grab-name">${escapeHtml(grabName)}</div>
+                            <div class="grab-badges">
+                                <span class="badge badge-score ${scoreClass}">${scoreLabel}</span>
+                                <span class="badge badge-size"><i class="fas fa-hdd"></i> ${size}</span>
+                                ${quality ? `<span class="badge badge-quality"><i class="fas fa-video"></i> ${quality}</span>` : ''}
+                                ${codec ? `<span class="badge badge-codec ${codecBad ? 'bad' : ''}"><i class="fas fa-microchip"></i> ${codec}</span>` : ''}
+                                <span class="badge badge-indexer"><i class="fas fa-database"></i> ${escapeHtml(indexer)}</span>
+                                ${grabCount > 0 ? `<span class="badge badge-grabs"><i class="fas fa-download"></i> ${grabCount}</span>` : ''}
+                            </div>
+                        </div>
+                        ${blocked
+                            ? `<span class="grab-blocked-label"><i class="fas fa-ban"></i> ${escapeHtml(blockReason)}</span>`
+                            : `<button class="grab-dl-btn" onclick="downloadGrab(${idx})" data-idx="${idx}"><i class="fas fa-download"></i> Download</button>`
+                        }
+                    </div>`;
+
+                // Store grab data
+                if (!window._grabData) window._grabData = {};
+                window._grabData[idx] = {
+                    grabUrl, grabTitle: grabName,
+                    size: grab.size || 0, indexer
+                };
+            });
+
+            html += '</div>';
+            resultsDiv.innerHTML = html;
+        }
+
+        function backToSearch() {
+            window._grabData = {};
+            currentMovieMedia = null;
+            const query = document.getElementById('search').value.trim();
+            if (query) searchMedia(query);
+            else document.getElementById('results').innerHTML = '';
+        }
+
+        // ============================================================
+        // DOWNLOAD GRAB — check Radarr first, then send to pipeline
+        // ============================================================
+        async function downloadGrab(idx) {
+            if (!currentMovieMedia) return;
+            const grab = window._grabData[idx];
+            if (!grab || !grab.grabUrl) {
+                showToast('No download URL for this release', 'error');
+                return;
+            }
+
+            // Disable the button
+            const btn = document.querySelector(`[data-idx="${idx}"]`);
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+
+            // Store grab data for after Radarr check
+            pendingGrabData = { idx, grab };
+
+            // Check if Radarr entry already exists
+            try {
+                const resp = await fetch(`${CONFIG.towerQueueUrl}/radarr-check/${currentMovieMedia.tmdbId}`);
+                if (resp.ok) {
+                    const check = await resp.json();
+                    const sendToTower = true;
+                    const keepLocal = document.getElementById('localPlexToggle').checked;
+
+                    const localHasFile = check.local && check.local.hasFile;
+                    const towerHasFile = check.tower && check.tower.hasFile;
+
+                    // If entries exist but have no files, silently delete and proceed
+                    if ((check.local && !localHasFile) || (check.tower && !towerHasFile)) {
+                        try {
+                            if (check.local && !localHasFile) {
+                                await fetch(`${CONFIG.towerQueueUrl}/radarr-entry/${check.local.id}?target=local&deleteFiles=false`, { method: 'DELETE' });
+                            }
+                            if (check.tower && !towerHasFile) {
+                                await fetch(`${CONFIG.towerQueueUrl}/radarr-entry/${check.tower.id}?target=tower&deleteFiles=false`, { method: 'DELETE' });
+                            }
+                        } catch (e) { console.warn('Auto-delete empty entries:', e); }
+                    }
+
+                    // Only prompt if an entry actually has a file
+                    if (localHasFile || towerHasFile) {
+                        showRadarrModal(check, sendToTower);
+                        return;
+                    }
+                }
+            } catch (err) {
+                console.warn('Radarr check failed (non-fatal):', err);
+            }
+
+            // No existing entry (or empty ones were cleaned up) — proceed directly
+            await sendDownload(grab);
+        }
+
+        function showRadarrModal(check, sendToTower) {
+            let body = '';
+            if (check.local) {
+                body += `<p>This movie already exists in <strong>local Radarr</strong>:</p>`;
+                body += `<p style="margin: 8px 0; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 8px; font-size: 13px;">`;
+                body += `<strong>${escapeHtml(check.local.title)}</strong> (${check.local.year})<br>`;
+                body += `Has file: ${check.local.hasFile ? 'Yes' : 'No'}<br>`;
+                body += `Path: <code style="font-size:11px">${escapeHtml(check.local.path)}</code></p>`;
+            }
+            if (sendToTower && check.tower) {
+                body += `<p style="margin-top:12px">Also exists in <strong>tower Radarr</strong>:</p>`;
+                body += `<p style="margin: 8px 0; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 8px; font-size: 13px;">`;
+                body += `<strong>${escapeHtml(check.tower.title)}</strong> (${check.tower.year})<br>`;
+                body += `Has file: ${check.tower.hasFile ? 'Yes' : 'No'}</p>`;
+            }
+            body += `<p style="margin-top:12px; color: var(--accent);">Delete existing entries and download a fresh copy?</p>`;
+
+            document.getElementById('radarrModalBody').innerHTML = body;
+
+            // Store check data for the delete action
+            window._radarrCheck = check;
+            document.getElementById('radarrModal').classList.add('visible');
+        }
+
+        function closeRadarrModal() {
+            document.getElementById('radarrModal').classList.remove('visible');
+            // Re-enable the download button
+            if (pendingGrabData) {
+                const btn = document.querySelector(`[data-idx="${pendingGrabData.idx}"]`);
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-download"></i> Download'; }
+            }
+            pendingGrabData = null;
+        }
+
+        async function confirmRadarrDelete() {
+            const check = window._radarrCheck;
+            const sendToTower = true;
+                const keepLocal = document.getElementById('localPlexToggle').checked;
+            const btn = document.getElementById('radarrDeleteBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+
+            try {
+                // Delete local entry
+                if (check.local) {
+                    await fetch(`${CONFIG.towerQueueUrl}/radarr-entry/${check.local.id}?target=local&deleteFiles=true`, { method: 'DELETE' });
+                }
+                // Delete tower entry
+                if (sendToTower && check.tower) {
+                    await fetch(`${CONFIG.towerQueueUrl}/radarr-entry/${check.tower.id}?target=tower&deleteFiles=true`, { method: 'DELETE' });
+                }
+                showToast('Existing entries deleted', 'info');
+            } catch (err) {
+                console.error('Delete failed:', err);
+                showToast('Failed to delete some entries', 'error');
+            }
+
+            closeRadarrModal();
+
+            // Now proceed with download
+            if (pendingGrabData) {
+                await sendDownload(pendingGrabData.grab);
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-trash"></i> Delete & Recreate';
+        }
+
+        async function sendDownload(grab) {
+            const sendToTower = true;
+                const keepLocal = document.getElementById('localPlexToggle').checked;
+
+            try {
+                const response = await fetch(`${CONFIG.towerQueueUrl}/download`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: currentMovieMedia.title,
+                        year: currentMovieMedia.year,
+                        tmdbId: currentMovieMedia.tmdbId,
+                        grabUrl: grab.grabUrl,
+                        grabTitle: grab.grabTitle,
+                        size: grab.size,
+                        indexer: grab.indexer,
+                        towerSync: sendToTower,
+                        keepLocal: keepLocal
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.ok) {
+                    document.getElementById('results').innerHTML = `<div class="message success"><i class="fas fa-check-circle"></i>Downloading "${escapeHtml(currentMovieMedia.title)}"!</div>`;
+                    showToast(`"${currentMovieMedia.title}" download started!`, 'success');
+                    startProgressTracking(currentMovieMedia.title);
+                    setTimeout(() => {
+                        document.getElementById('search').value = '';
+                        document.getElementById('results').innerHTML = '';
+                    }, 3000);
+                } else {
+                    showToast('Download failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Download error:', error);
+                showToast('Connection error', 'error');
+            }
+
+            pendingGrabData = null;
+        }
+
+        // ============================================================
+        // SEASON PICKER MODAL (TV — still uses Seerr)
+        // ============================================================
+        async function openSeasonModal(media) {
+            currentTvMedia = media;
+            const title = media.name || media.title;
+            document.getElementById('seasonModalTitle').textContent = title;
+            document.getElementById('seasonList').innerHTML = '<div class="loading"><div class="spinner"></div>Loading seasons...</div>';
+            document.getElementById('seasonModal').classList.add('visible');
+
+            try {
+                const response = await fetch(`${CONFIG.seerrBase}/tv/${media.id}`, { headers: { 'X-Api-Key': CONFIG.seerrApiKey } });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+                const seasons = (data.seasons || []).filter(s => s.seasonNumber > 0);
+                if (seasons.length === 0) {
+                    document.getElementById('seasonList').innerHTML = '<div class="message info"><i class="fas fa-info-circle"></i>No seasons found.</div>';
+                    return;
+                }
+                let html = '';
+                seasons.forEach(s => {
+                    html += `<div class="season-item" onclick="this.querySelector('input').click()">
+                        <input type="checkbox" id="season-${s.seasonNumber}" value="${s.seasonNumber}" checked onclick="event.stopPropagation()">
+                        <label for="season-${s.seasonNumber}">Season ${s.seasonNumber}</label>
+                        <span class="episode-count">${s.episodeCount || '?'} episodes</span>
+                    </div>`;
+                });
+                document.getElementById('seasonList').innerHTML = html;
+            } catch (error) {
+                document.getElementById('seasonList').innerHTML = '<div class="message error"><i class="fas fa-exclamation-circle"></i>Could not load season info.</div>';
+            }
+        }
+
+        function closeSeasonModal() {
+            document.getElementById('seasonModal').classList.remove('visible');
+            currentTvMedia = null;
+        }
+
+        async function submitSeasonRequest() {
+            if (!currentTvMedia) return;
+            const checkboxes = document.querySelectorAll('#seasonList input[type="checkbox"]:checked');
+            const seasons = Array.from(checkboxes).map(cb => parseInt(cb.value));
+            if (seasons.length === 0) { showToast('Select at least one season', 'error'); return; }
+
+            const btn = document.getElementById('seasonRequestBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Requesting...';
+
+            const media = currentTvMedia;
+            const title = media.name || media.title;
+            const sendToTower = true;
+                const keepLocal = document.getElementById('localPlexToggle').checked;
+
+            try {
+                const response = await fetch(`${CONFIG.seerrBase}/request`, {
+                    method: 'POST',
+                    headers: { 'X-Api-Key': CONFIG.seerrApiKey, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mediaType: 'tv', mediaId: media.id, seasons })
+                });
+                let data = {};
+                const responseText = await response.text();
+                try { data = JSON.parse(responseText); } catch (_) {}
+
+                if (response.ok) {
+                    registerWithTowerQueue(title, media, 'tv', sendToTower, keepLocal);
+                    closeSeasonModal();
+                    document.getElementById('results').innerHTML = `<div class="message success"><i class="fas fa-check-circle"></i>Requested "${escapeHtml(title)}" (${seasons.length} season${seasons.length > 1 ? 's' : ''})!</div>`;
+                    showToast(`"${title}" requested!`, 'success');
+                    startProgressTracking(title);
+                    setTimeout(() => { document.getElementById('search').value = ''; document.getElementById('results').innerHTML = ''; }, 3000);
+                } else {
+                    const errorMsg = data.message || responseText || 'Unknown error';
+                    if (errorMsg.toLowerCase().includes('already') || errorMsg.toLowerCase().includes('exists') || errorMsg.toLowerCase().includes('available')) {
+                        closeSeasonModal();
+                        document.getElementById('results').innerHTML = `<div class="message info"><i class="fas fa-info-circle"></i>"${escapeHtml(title)}" is already requested or available.</div>`;
+                    } else {
+                        showToast('Request failed: ' + errorMsg, 'error');
+                    }
+                }
+            } catch (error) {
+                showToast('Connection error', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-plus-circle"></i> Request Selected';
+            }
+        }
+
+        document.getElementById('seasonModal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) closeSeasonModal();
+        });
+
+        document.getElementById('radarrModal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) closeRadarrModal();
+        });
+
+        // ============================================================
+        // TOWER QUEUE REGISTRATION (legacy, TV)
+        // ============================================================
+        async function registerWithTowerQueue(title, media, type, towerSync, keepLocal) {
+            try {
+                const dateStr = type === 'tv' ? (media.firstAirDate || media.first_air_date) : (media.releaseDate || media.release_date);
+                await fetch(`${CONFIG.towerQueueUrl}/queue`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, year: dateStr ? new Date(dateStr).getFullYear().toString() : '', tmdbId: media.id, type, towerSync, keepLocal })
+                });
+            } catch (err) {
+                console.warn('Tower queue registration failed (non-fatal):', err);
+            }
+        }
+
+        // ============================================================
+        // PROGRESS TRACKING
+        // ============================================================
+        function startProgressTracking(title) {
+            const panel = document.getElementById('progressPanel');
+            document.getElementById('progressTitleText').textContent = `Processing: ${title}`;
+            panel.classList.add('visible');
+            ['download', 'transcode', 'upload'].forEach(stage => {
+                document.getElementById(`stage-${stage}`).className = 'pipeline-stage';
+                document.getElementById(`${stage}-detail`).textContent = 'Waiting...';
+            });
+            document.getElementById('download-bar-wrap').style.display = 'none';
+            document.getElementById('download-bar').style.width = '0%';
+            document.getElementById('progressDone').classList.remove('visible');
+            document.getElementById('pipeline').style.display = 'flex';
+            if (progressInterval) clearInterval(progressInterval);
+            progressInterval = setInterval(() => pollProgress(title), 5000);
+            pollProgress(title);
+        }
+
+        async function pollProgress(title) {
+            try {
+                const response = await fetch(`${CONFIG.towerQueueUrl}/status?title=${encodeURIComponent(title)}`);
+                if (!response.ok) return;
+                const data = await response.json();
+                if (!data.requests || data.requests.length === 0) return;
+                updateProgressUI(data.requests[0]);
+            } catch (err) {}
+        }
+
+        function updateProgressUI(req) {
+            const state = req.state;
+            const stages = ['download', 'transcode', 'upload'];
+            const stateOrder = { queued: -1, downloading: 0, transcoding: 1, importing: 1, uploading: 2, done: 3, error: 3 };
+            const currentIdx = stateOrder[state] ?? -1;
+
+            document.getElementById('stage-upload').style.display = '';
+
+            stages.forEach((stage, idx) => {
+                const el = document.getElementById(`stage-${stage}`);
+                if (idx < currentIdx) {
+                    el.className = 'pipeline-stage completed';
+                    document.getElementById(`${stage}-detail`).textContent = 'Complete';
+                } else if (idx === currentIdx) {
+                    el.className = 'pipeline-stage active';
+                } else {
+                    el.className = 'pipeline-stage';
+                    document.getElementById(`${stage}-detail`).textContent = 'Waiting...';
+                }
+            });
+
+            if (state === 'downloading') {
+                const pct = req.progress || 0;
+                const speed = req.speed ? `${req.speed} MB/s` : '';
+                const eta = req.eta || '';
+                let detail = `${pct}%`;
+                if (speed) detail += ` \u2022 ${speed}`;
+                if (eta) detail += ` \u2022 ETA: ${eta}`;
+                document.getElementById('download-detail').textContent = detail;
+                document.getElementById('download-bar-wrap').style.display = 'block';
+                document.getElementById('download-bar').style.width = `${pct}%`;
+            }
+            if (state === 'transcoding') {
+                document.getElementById('transcode-detail').innerHTML = '<div class="spinner" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:6px;border-width:2px;"></div>Remuxing to MP4...';
+            }
+            if (state === 'importing') {
+                document.getElementById('transcode-detail').innerHTML = '<div class="spinner" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:6px;border-width:2px;"></div>Moving to library...';
+            }
+            if (state === 'uploading') {
+                document.getElementById('upload-detail').innerHTML = '<div class="spinner" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:6px;border-width:2px;"></div>Uploading to Primary Plex...';
+            }
+            if (state === 'done' || state === 'error') {
+                if (progressInterval) { clearInterval(progressInterval); progressInterval = null; }
+                document.getElementById('pipeline').style.display = 'none';
+                const doneEl = document.getElementById('progressDone');
+                doneEl.classList.add('visible');
+                if (state === 'done') {
+                    doneEl.innerHTML = '<i class="fas fa-check-circle"></i> All done! Your media is ready.';
+                    doneEl.style.color = 'var(--success)';
+                } else {
+                    doneEl.innerHTML = '<i class="fas fa-exclamation-circle"></i> An error occurred during processing.';
+                    doneEl.style.color = 'var(--error)';
+                }
+                setTimeout(() => document.getElementById('progressPanel').classList.remove('visible'), 30000);
+            }
+        }
+        // ============================================================
+        // TAB SWITCHING
+        // ============================================================
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.getElementById(`tab-${tab}`).classList.add('active');
+            document.querySelector(`.tab-btn[onclick="switchTab('${tab}')"]`).classList.add('active');
+
+            if (tab === 'browse' && !document.getElementById('genreChips').innerHTML) {
+                initBrowse();
+            }
+        }
+
+        // ============================================================
+        // BROWSE — mdblist integration
+        // ============================================================
+        const GENRES = {
+            horror: { icon: 'fa-ghost', label: 'Horror' },
+            romance: { icon: 'fa-heart', label: 'Romance' },
+            romcom: { icon: 'fa-face-laugh-beam', label: 'Rom-Com' },
+            family: { icon: 'fa-child', label: 'Family' },
+            comedy: { icon: 'fa-face-grin-tears', label: 'Comedy' },
+            thriller: { icon: 'fa-user-secret', label: 'Thriller' },
+            scifi: { icon: 'fa-rocket', label: 'Sci-Fi' },
+            action: { icon: 'fa-explosion', label: 'Action' },
+        };
+
+        let browseSearchTimeout;
+        let currentListId = null;
+        let currentBrowseOffset = 0;
+
+        function initBrowse() {
+            const chipsEl = document.getElementById('genreChips');
+            let html = '';
+            for (const [key, val] of Object.entries(GENRES)) {
+                html += `<button class="genre-chip" onclick="loadGenreLists('${key}', this)"><i class="fas ${val.icon}"></i> ${val.label}</button>`;
+            }
+            chipsEl.innerHTML = html;
+
+            // List search
+            document.getElementById('browseSearch').addEventListener('input', (e) => {
+                clearTimeout(browseSearchTimeout);
+                const q = e.target.value.trim();
+                if (q.length > 2) {
+                    browseSearchTimeout = setTimeout(() => searchLists(q), 400);
+                } else if (q.length === 0) {
+                    document.getElementById('browseResults').innerHTML = '';
+                }
+            });
+        }
+
+        async function searchLists(query) {
+            const el = document.getElementById('browseResults');
+            el.innerHTML = '<div class="loading"><div class="spinner"></div>Searching lists...</div>';
+
+            // Deselect genre chips
+            document.querySelectorAll('.genre-chip').forEach(c => c.classList.remove('active'));
+
+            try {
+                const resp = await fetch(`${CONFIG.towerQueueUrl}/mdblist/search?q=${encodeURIComponent(query)}`);
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const data = await resp.json();
+
+                if (!data.lists || data.lists.length === 0) {
+                    el.innerHTML = '<div class="message info"><i class="fas fa-info-circle"></i>No lists found.</div>';
+                    return;
+                }
+
+                let html = '<div class="results-header"><i class="fas fa-list"></i> Lists matching "' + escapeHtml(query) + '"</div>';
+                data.lists.forEach(lst => {
+                    html += `<div class="list-item" onclick="loadListItems('${escapeHtml(lst.id)}', '${escapeHtml(lst.name)}')">
+                        <span class="list-item-name"><i class="fas fa-list-ul" style="margin-right:8px;color:var(--secondary)"></i>${escapeHtml(lst.name)}</span>
+                        ${lst.itemCount ? `<span class="list-item-count">${lst.itemCount} items</span>` : ''}
+                        ${lst.user ? `<span class="list-item-user">by ${escapeHtml(lst.user)}</span>` : ''}
+                    </div>`;
+                });
+                el.innerHTML = html;
+            } catch (err) {
+                console.error('List search error:', err);
+                el.innerHTML = '<div class="message error"><i class="fas fa-exclamation-triangle"></i>Could not search lists.</div>';
+            }
+        }
+
+        async function loadGenreLists(genre, chipEl) {
+            // Toggle active chip
+            document.querySelectorAll('.genre-chip').forEach(c => c.classList.remove('active'));
+            chipEl.classList.add('active');
+            document.getElementById('browseSearch').value = '';
+
+            const el = document.getElementById('browseResults');
+            el.innerHTML = '<div class="loading"><div class="spinner"></div>Loading...</div>';
+
+            try {
+                const resp = await fetch(`${CONFIG.towerQueueUrl}/mdblist/lists?genre=${genre}`);
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const data = await resp.json();
+
+                if (!data.lists || data.lists.length === 0) {
+                    el.innerHTML = '<div class="message info"><i class="fas fa-info-circle"></i>No lists for this genre.</div>';
+                    return;
+                }
+
+                // If only one list, load it directly
+                if (data.lists.length === 1) {
+                    loadListItems(data.lists[0].id, data.lists[0].name);
+                    return;
+                }
+
+                let html = `<div class="results-header"><i class="fas fa-list"></i> ${GENRES[genre]?.label || genre} Lists</div>`;
+                data.lists.forEach(lst => {
+                    html += `<div class="list-item" onclick="loadListItems('${lst.id}', '${escapeHtml(lst.name)}')">
+                        <span class="list-item-name"><i class="fas fa-list-ul" style="margin-right:8px;color:var(--secondary)"></i>${escapeHtml(lst.name)}</span>
+                    </div>`;
+                });
+                el.innerHTML = html;
+            } catch (err) {
+                console.error('Genre lists error:', err);
+                el.innerHTML = '<div class="message error"><i class="fas fa-exclamation-triangle"></i>Could not load genre lists.</div>';
+            }
+        }
+
+        async function loadListItems(listId, listName, append = false) {
+            const el = document.getElementById('browseResults');
+            if (!append) {
+                currentListId = listId;
+                currentBrowseOffset = 0;
+                el.innerHTML = '<div class="loading"><div class="spinner"></div>Loading movies...</div>';
+            }
+
+            try {
+                const resp = await fetch(`${CONFIG.towerQueueUrl}/mdblist/list/${listId}?offset=${currentBrowseOffset}&limit=50`);
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const data = await resp.json();
+
+                if (!data.items || data.items.length === 0) {
+                    if (!append) {
+                        el.innerHTML = `
+                            <div class="grab-panel-header">
+                                <button class="back-btn" onclick="backToBrowse()"><i class="fas fa-arrow-left"></i> Back</button>
+                                <span class="grab-panel-title">${escapeHtml(listName)}</span>
+                            </div>
+                            <div class="message info"><i class="fas fa-info-circle"></i>No movies in this list.</div>`;
+                    }
+                    return;
+                }
+
+                let html = '';
+                if (!append) {
+                    html = `<div class="grab-panel-header">
+                        <button class="back-btn" onclick="backToBrowse()"><i class="fas fa-arrow-left"></i> Back</button>
+                        <span class="grab-panel-title">${escapeHtml(listName)}</span>
+                    </div>
+                    <div class="browse-grid" id="browseGrid">`;
+                }
+
+                data.items.forEach(movie => {
+                    if (!movie.title) return;
+                    const fallbackPoster = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTQwIiBoZWlnaHQ9IjIxMCIgdmlld0JveD0iMCAwIDE0MCAyMTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjE0MCIgaGVpZ2h0PSIyMTAiIHJ4PSI4IiBmaWxsPSIjMUYyOTM3Ii8+PHRleHQgeD0iNzAiIHk9IjEwNSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzQ3NTU2OSIgZm9udC1zaXplPSIxNCI+Tm8gUG9zdGVyPC90ZXh0Pjwvc3ZnPg==';
+                    // Use TMDB poster via Seerr proxy to get poster path
+                    const tmdbPosterUrl = movie.tmdbId ? `https://image.tmdb.org/t/p/w300/${movie.tmdbId}` : '';
+                    const safeTitle = escapeHtml(movie.title).replace(/'/g, "\\'");
+
+                    html += `<div class="browse-card" onclick="browseMovieClick(${movie.tmdbId || 0}, '${safeTitle}', '${movie.year || ''}')" data-tmdb="${movie.tmdbId || ''}">
+                        <img src="${fallbackPoster}" alt="${escapeHtml(movie.title)}" loading="lazy">
+                        <div class="browse-card-info">
+                            <div class="browse-card-title" title="${escapeHtml(movie.title)}">${escapeHtml(movie.title)}</div>
+                            <div class="browse-card-year">${movie.year || ''}${movie.rank ? ' · #' + movie.rank : ''}</div>
+                        </div>
+                    </div>`;
+                });
+
+                if (!append) {
+                    html += '</div>';
+                    el.innerHTML = html;
+                } else {
+                    document.getElementById('browseGrid').insertAdjacentHTML('beforeend', html);
+                    const oldBtn = document.getElementById('loadMoreBtn');
+                    if (oldBtn) oldBtn.remove();
+                }
+
+                // Fetch posters from Seerr/TMDB for each movie
+                loadBrowsePosters(data.items);
+
+                // Add load more button if we got a full page
+                if (data.items.length >= 50) {
+                    currentBrowseOffset += data.items.length;
+                    el.insertAdjacentHTML('beforeend',
+                        `<button class="load-more-btn" id="loadMoreBtn" onclick="loadListItems('${listId}', '${escapeHtml(listName).replace(/'/g, "\\'")}', true)">
+                            <i class="fas fa-plus"></i> Load More
+                        </button>`);
+                }
+
+            } catch (err) {
+                console.error('List items error:', err);
+                if (!append) {
+                    el.innerHTML = '<div class="message error"><i class="fas fa-exclamation-triangle"></i>Could not load list.</div>';
+                }
+            }
+        }
+
+        function backToBrowse() {
+            currentListId = null;
+            currentBrowseOffset = 0;
+            document.getElementById('browseResults').innerHTML = '';
+            // Re-trigger the active genre chip if any
+            const activeChip = document.querySelector('.genre-chip.active');
+            if (activeChip) activeChip.click();
+        }
+
+        function loadBrowsePosters(items) {
+            // Fetch poster paths from Seerr in parallel (5 at a time)
+            const batch = 5;
+            let i = 0;
+            function loadNext() {
+                const chunk = items.slice(i, i + batch).filter(m => m.tmdbId);
+                if (chunk.length === 0) return;
+                i += batch;
+                Promise.all(chunk.map(async movie => {
+                    const card = document.querySelector(`.browse-card[data-tmdb="${movie.tmdbId}"]`);
+                    if (!card) return;
+                    try {
+                        const resp = await fetch(
+                            `${CONFIG.seerrBase}/movie/${movie.tmdbId}`,
+                            { headers: { 'X-Api-Key': CONFIG.seerrApiKey } }
+                        );
+                        if (resp.ok) {
+                            const data = await resp.json();
+                            if (data.posterPath) {
+                                card.querySelector('img').src = `${CONFIG.tmdbImageUrl}${data.posterPath}`;
+                            }
+                        }
+                    } catch (e) {}
+                })).then(loadNext);
+            }
+            loadNext();
+        }
+
+        async function browseMovieClick(tmdbId, title, year) {
+            if (!tmdbId) {
+                showToast('No TMDB ID for this movie', 'error');
+                return;
+            }
+
+            // Switch to search tab and trigger grab search using the movie info
+            switchTab('search');
+
+            // Build a media object compatible with fetchGrabs
+            const media = {
+                id: tmdbId,
+                title: title,
+                mediaType: 'movie',
+                releaseDate: year ? `${year}-01-01` : '',
+            };
+
+            fetchGrabs(media);
+        }
+
+        // ============================================================
+        // ACTIVITY FEED — polls all active/recent requests
+        // ============================================================
+        const ACTIVITY_PER_PAGE = 5;
+        let activityPageNum = 0;
+        let allActivity = [];
+
+        async function pollActivity() {
+            try {
+                const resp = await fetch(`${CONFIG.towerQueueUrl}/status`);
+                if (!resp.ok) return;
+                const data = await resp.json();
+                allActivity = (data.requests || []).sort((a, b) => {
+                    const order = { downloading: 0, transcoding: 1, importing: 1, uploading: 2, queued: 3, done: 4, error: 5 };
+                    return (order[a.state] ?? 9) - (order[b.state] ?? 9);
+                });
+                renderActivity();
+            } catch (e) {}
+        }
+
+        function renderActivity() {
+            const panel = document.getElementById('activityPanel');
+            const list = document.getElementById('activityList');
+            const countEl = document.getElementById('activityCount');
+            const pager = document.getElementById('activityPager');
+
+            if (allActivity.length === 0) {
+                panel.style.display = 'none';
+                return;
+            }
+
+            panel.style.display = 'block';
+            countEl.textContent = allActivity.length;
+
+            const start = activityPageNum * ACTIVITY_PER_PAGE;
+            const page = allActivity.slice(start, start + ACTIVITY_PER_PAGE);
+            const totalPages = Math.ceil(allActivity.length / ACTIVITY_PER_PAGE);
+
+            const stateIcons = {
+                downloading: 'fa-download', transcoding: 'fa-cogs', importing: 'fa-cogs',
+                uploading: 'fa-cloud-upload-alt', done: 'fa-check', error: 'fa-exclamation-triangle', queued: 'fa-clock'
+            };
+
+            const stateLabels = {
+                downloading: 'Downloading', transcoding: 'Remuxing', importing: 'Importing',
+                uploading: 'Uploading', done: 'Complete', error: 'Error', queued: 'Queued'
+            };
+
+            let html = '';
+            page.forEach(req => {
+                const state = req.state || 'queued';
+                const stateClass = state === 'importing' ? 'transcoding' : state;
+                const icon = stateIcons[state] || 'fa-circle';
+                const label = stateLabels[state] || state;
+                const pct = req.progress || 0;
+                const speed = req.speed ? `${req.speed} MB/s` : '';
+                const eta = req.eta || '';
+                let detail = '';
+
+                if (state === 'downloading') {
+                    detail = `${pct}%`;
+                    if (speed) detail += ` · ${speed}`;
+                    if (eta) detail += ` · ETA ${eta}`;
+                } else if (req.grabTitle) {
+                    detail = req.grabTitle.length > 50 ? req.grabTitle.substring(0, 47) + '...' : req.grabTitle;
+                }
+
+                const year = req.year ? ` (${req.year})` : '';
+
+                html += `<div class="activity-item">
+                    <div class="activity-icon ${stateClass}"><i class="fas ${icon}"></i></div>
+                    <div class="activity-info">
+                        <div class="activity-title">${escapeHtml(req.title || 'Unknown')}${year}</div>
+                        ${detail ? `<div class="activity-detail">${escapeHtml(detail)}</div>` : ''}
+                    </div>
+                    ${state === 'downloading' ? `<div class="activity-progress"><div class="activity-progress-fill" style="width:${pct}%"></div></div>` : ''}
+                    <span class="activity-status ${stateClass}">${label}</span>
+                </div>`;
+            });
+
+            list.innerHTML = html;
+
+            if (totalPages > 1) {
+                pager.style.display = 'flex';
+                document.getElementById('activityPrev').disabled = activityPageNum === 0;
+                document.getElementById('activityNext').disabled = activityPageNum >= totalPages - 1;
+            } else {
+                pager.style.display = 'none';
+            }
+        }
+
+        function activityPage(dir) {
+            const totalPages = Math.ceil(allActivity.length / ACTIVITY_PER_PAGE);
+            activityPageNum = Math.max(0, Math.min(totalPages - 1, activityPageNum + dir));
+            renderActivity();
+        }
+
+        // Poll activity every 5 seconds
+        setInterval(pollActivity, 5000);
+        pollActivity();
+
+    </script>
+</body>
+</html>

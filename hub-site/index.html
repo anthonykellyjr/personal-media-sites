@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebHead Media</title>
+  <link rel="icon" type="image/png" href="/status/images/favicon.png">
+  <link rel="stylesheet" href="/status/style.css">
+</head>
+<body>
+  <announcement-banner></announcement-banner>
+  
+  <div class="container">
+    <header class="header">
+      <div class="header-brand">
+        <img src="/status/images/favicon.png" alt="WebHead Media" class="header-logo">
+        <span class="header-title">WebHead Media</span>
+      </div>
+      
+      <search-bar></search-bar>
+      
+      <live-stats></live-stats>
+    </header>
+
+    <div class="services-grid">
+      <service-card
+        name="AK's Plex"
+        href="https://app.plex.tv"
+        icon="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/plex.png"
+      ></service-card>
+      
+      <service-card
+        name="Request Content"
+        href="https://akplex.tv/request"
+        icon="/status/images/blockbuster.jpg"
+      ></service-card>
+      
+      <service-card
+        name="Report Issue"
+        href="https://akplex.tv/issues"
+        icon="/status/images/technical-diff.png"
+      ></service-card>
+    </div>
+
+    <status-embed 
+      src="https://pulse.akplex.tv"
+      title="Service Status"
+    ></status-embed>
+
+    <section class="section">
+      <h2 class="section-title">Tools</h2>
+      <div class="tools-grid">
+        <service-card
+          name="Tautulli"
+          href="https://tautulli.akplex.tv"
+          icon="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/tautulli.png"
+        ></service-card>
+        
+        <service-card
+          name="FileBrowser"
+          href="https://filebrowser.webheadmedia.com/share/DHeayiLC"
+          icon="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/filebrowser.png"
+        ></service-card>
+      </div>
+    </section>
+
+    <footer class="footer">
+      WebHead Media © 2025 | <a href="https://akplex.tv/issues">Report an Issue</a>
+    </footer>
+  </div>
+
+  <script src="/status/components/announcement-banner.js"></script>
+  <script src="/status/components/live-stats.js"></script>
+  <script src="/status/components/search-bar.js"></script>
+  <script src="/status/components/service-card.js"></script>
+  <script src="/status/components/status-embed.js"></script>
+</body>
+</html>

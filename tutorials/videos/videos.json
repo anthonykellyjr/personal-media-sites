@@ -1,0 +1,34 @@
+[
+  {
+    "id": "accepting-plex-invite",
+    "title": "Accepting a Plex Invite",
+    "description": "How to accept a Plex server invite and get started",
+    "filename": "Accepting_Plex_Invite.mp4",
+    "thumbnail": "Accepting_Plex_Invite.jpg",
+    "category": "Getting Started"
+  },
+  {
+    "id": "configure-home-content",
+    "title": "Configure Home Content",
+    "description": "How to customize what content appears on your Plex home screen",
+    "filename": "Configure_Home_Content.mp4",
+    "thumbnail": "Configure_Home_Content.jpg",
+    "category": "Customization"
+  },
+  {
+    "id": "configure-home-screen",
+    "title": "Configure Home Screen",
+    "description": "How to set up and organize your Plex home screen layout",
+    "filename": "Configure_Home_Screen.mp4",
+    "thumbnail": "Configure_Home_Screen.jpg",
+    "category": "Customization"
+  },
+  {
+    "id": "playback-controls",
+    "title": "Playback Controls",
+    "description": "How to use Plex playback controls during streaming",
+    "filename": "Playback_Controls.mp4",
+    "thumbnail": "Playback_Controls.jpg",
+    "category": "Getting Started"
+  }
+]

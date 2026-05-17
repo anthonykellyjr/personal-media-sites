@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebHead Media - Requests Admin</title>
+  <link rel="icon" type="image/png" href="/status/images/favicon.png">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #0a0a0f;
+      --card: rgba(30, 41, 59, 0.5);
+      --border: rgba(255, 255, 255, 0.1);
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #a855f7;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg); color: var(--text); min-height: 100vh; padding: 24px;
+    }
+    body::before {
+      content: ''; position: fixed; inset: 0; z-index: -1;
+      background:
+        radial-gradient(circle at 15% 85%, rgba(168, 85, 247, 0.18) 0%, transparent 45%),
+        radial-gradient(circle at 85% 15%, rgba(99, 102, 241, 0.18) 0%, transparent 45%);
+    }
+    .wrap { max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 1.5rem; margin-bottom: 4px; }
+    h1 span { background: linear-gradient(90deg, #c084fc, #f0abfc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 24px; }
+    .card {
+      background: var(--card); backdrop-filter: blur(16px);
+      border: 1px solid var(--border); border-radius: 16px; padding: 20px; margin-bottom: 16px;
+    }
+    .card h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 14px; }
+    label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 6px; margin-top: 14px; }
+    label:first-of-type { margin-top: 0; }
+    input[type=text], input[type=password], input[type=search], textarea {
+      width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 12px; color: var(--text); font-size: 0.95rem; font-family: inherit;
+    }
+    textarea { resize: vertical; min-height: 80px; }
+    input:focus, textarea:focus { outline: none; border-color: var(--accent); }
+    .check { display: flex; align-items: center; gap: 8px; margin-top: 14px; cursor: pointer; }
+    .check input { width: 16px; height: 16px; accent-color: var(--accent); }
+    .check span { font-size: 0.9rem; color: var(--text); }
+    button {
+      padding: 8px 14px; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600;
+      cursor: pointer; transition: opacity 0.15s, transform 0.05s; color: #fff;
+      background: rgba(255,255,255,0.08); border: 1px solid var(--border);
+    }
+    button:active { transform: translateY(1px); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.primary { background: linear-gradient(135deg, #9333ea, #c026d3); border: none; }
+    button.danger  { background: rgba(248, 113, 113, 0.15); border-color: rgba(248, 113, 113, 0.4); color: #fca5a5; }
+    .row-item {
+      padding: 12px; border: 1px solid var(--border); border-radius: 12px; margin-bottom: 10px;
+      background: rgba(0,0,0,0.2);
+    }
+    .row-item .text { font-size: 0.95rem; margin-bottom: 4px; word-break: break-word; }
+    .row-item .meta { font-size: 0.75rem; color: var(--muted); margin-bottom: 8px; }
+    .search-row { display: flex; gap: 8px; }
+    .search-row input { flex: 1; }
+    .results { margin-top: 10px; display: none; flex-direction: column; gap: 6px; max-height: 280px; overflow-y: auto; }
+    .results.open { display: flex; }
+    .result {
+      display: flex; align-items: center; gap: 10px; padding: 6px 8px;
+      background: rgba(255,255,255,0.04); border: 1px solid transparent; border-radius: 8px; cursor: pointer;
+    }
+    .result:hover { background: rgba(168,85,247,0.12); border-color: rgba(168,85,247,0.4); }
+    .result img { width: 36px; height: 54px; border-radius: 4px; object-fit: cover; background: #222; }
+    .result .title { font-size: 0.85rem; font-weight: 600; }
+    .result .sub { font-size: 0.7rem; color: var(--muted); margin: 0; }
+    .badge { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; margin-left: 6px; }
+    .badge.movie { background: rgba(59, 130, 246, 0.25); color: #93c5fd; }
+    .badge.tv    { background: rgba(16, 185, 129, 0.25); color: #6ee7b7; }
+    .matched-card { display: flex; gap: 12px; align-items: center; }
+    .matched-card img { width: 44px; height: 66px; border-radius: 6px; object-fit: cover; background: #222; flex-shrink: 0; }
+    .matched-card .info { flex: 1; }
+    .matched-card .title { font-size: 0.95rem; font-weight: 600; }
+    .matched-card .orig { font-size: 0.75rem; color: var(--muted); font-style: italic; }
+    .actions { display: flex; gap: 8px; flex-shrink: 0; }
+    .empty { color: var(--muted); font-size: 0.85rem; font-style: italic; padding: 6px 0; }
+    .status { font-size: 0.85rem; margin-top: 12px; min-height: 1.2em; }
+    .status.ok { color: #4ade80; }
+    .status.err { color: #f87171; }
+    .status.info { color: var(--muted); }
+    .links { text-align: center; margin-top: 8px; }
+    .links a { color: var(--muted); font-size: 0.85rem; text-decoration: none; }
+    .links a:hover { color: var(--text); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1><span>Anonymous Requests</span></h1>
+    <p class="sub">Match text requests to TMDB so they appear on <a href="/recently-added/" style="color:#c084fc;">akplex.tv/recently-added/</a> once available.</p>
+
+    <!-- Auth (collapsed when a key is remembered) -->
+    <div class="card" id="authCard">
+      <h2>Authentication</h2>
+      <label for="adminKey">Admin key</label>
+      <input type="password" id="adminKey" placeholder="X-Admin-Key" autocomplete="off">
+      <label class="check"><input type="checkbox" id="rememberKey"><span>Remember on this device</span></label>
+      <div class="status info" id="topStatus">Enter your admin key, then click Load.</div>
+      <div style="margin-top: 12px;"><button class="primary" id="loadBtn">Load requests</button></div>
+    </div>
+
+    <!-- Compact "signed in" indicator (shown when authCard is hidden) -->
+    <div class="card" id="authChip" style="display:none; padding: 10px 16px;">
+      <div style="display: flex; align-items: center; gap: 12px; font-size: 0.85rem;">
+        <span style="color:#4ade80;">●</span>
+        <span style="color: var(--muted); flex:1;">Signed in. <span id="topStatusInline" style="margin-left:8px;"></span></span>
+        <button id="forgetBtn" style="padding: 6px 10px; font-size: 0.75rem;">Sign out</button>
+      </div>
+    </div>
+
+    <!-- Seed: paste one title per line to backfill or add manually -->
+    <div class="card">
+      <h2>Add requests manually</h2>
+      <label for="seedBox">One title per line (for backfill, or requests you got via DM/SMS):</label>
+      <textarea id="seedBox" placeholder="e.g.&#10;Garfield (2004)&#10;Severance&#10;The Bear"></textarea>
+      <div style="margin-top: 12px; display: flex; gap: 8px;">
+        <button class="primary" id="seedBtn">Add to Unmatched</button>
+        <div class="status info" id="seedStatus" style="flex:1; align-self: center; margin: 0;"></div>
+      </div>
+    </div>
+
+    <!-- Unmatched -->
+    <div class="card">
+      <h2>Unmatched (<span id="unmatchedCount">0</span>)</h2>
+      <div id="unmatchedList"><div class="empty">Nothing loaded yet.</div></div>
+    </div>
+
+    <!-- Matched -->
+    <div class="card">
+      <h2>Matched (<span id="matchedCount">0</span>)</h2>
+      <div id="matchedList"><div class="empty">Nothing loaded yet.</div></div>
+    </div>
+
+    <div class="links"><a href="/announce/">→ Announcements admin</a> &nbsp;·&nbsp; <a href="/status/">← Status Hub</a></div>
+  </div>
+
+  <script>
+    const KEY_STORAGE = 'requests_admin_key';
+    const el = {
+      adminKey:    document.getElementById('adminKey'),
+      rememberKey: document.getElementById('rememberKey'),
+      topStatus:   document.getElementById('topStatus'),
+      topStatusInline: document.getElementById('topStatusInline'),
+      loadBtn:     document.getElementById('loadBtn'),
+      authCard:    document.getElementById('authCard'),
+      authChip:    document.getElementById('authChip'),
+      forgetBtn:   document.getElementById('forgetBtn'),
+      seedBox:     document.getElementById('seedBox'),
+      seedBtn:     document.getElementById('seedBtn'),
+      seedStatus:  document.getElementById('seedStatus'),
+      unmatched:   document.getElementById('unmatchedList'),
+      matched:     document.getElementById('matchedList'),
+      unmatchedCount: document.getElementById('unmatchedCount'),
+      matchedCount: document.getElementById('matchedCount'),
+    };
+
+    // ── Admin key: load remembered, keep in sync ────────────────────────────
+    const saved = localStorage.getItem(KEY_STORAGE);
+    if (saved) { el.adminKey.value = saved; el.rememberKey.checked = true; }
+    function syncKey() {
+      if (el.rememberKey.checked && el.adminKey.value) localStorage.setItem(KEY_STORAGE, el.adminKey.value);
+      else localStorage.removeItem(KEY_STORAGE);
+    }
+    el.adminKey.addEventListener('input', syncKey);
+    el.rememberKey.addEventListener('change', syncKey);
+
+    function showAuthed(authed) {
+      el.authCard.style.display = authed ? 'none' : '';
+      el.authChip.style.display = authed ? '' : 'none';
+    }
+
+    el.forgetBtn.addEventListener('click', () => {
+      localStorage.removeItem(KEY_STORAGE);
+      el.adminKey.value = '';
+      el.rememberKey.checked = false;
+      showAuthed(false);
+      setStatus('Signed out.', 'info');
+      renderUnmatched([]);
+      clearMatched();
+    });
+
+    function setStatus(msg, kind = 'info') {
+      el.topStatus.textContent = msg;
+      el.topStatus.className = 'status ' + kind;
+      el.topStatusInline.textContent = msg;
+      el.topStatusInline.style.color = kind === 'err' ? '#f87171' : (kind === 'ok' ? '#4ade80' : '');
+    }
+
+    function escapeHtml(s) {
+      return (s || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+    }
+
+    // ── Authenticated fetch helper ──────────────────────────────────────────
+    async function apiFetch(path, opts = {}) {
+      const key = el.adminKey.value.trim();
+      if (!key) throw new Error('Admin key required');
+      const headers = { 'X-Admin-Key': key, ...(opts.headers || {}) };
+      if (opts.body) headers['Content-Type'] = 'application/json';
+      const res = await fetch(path, { ...opts, headers });
+      if (res.status === 401) throw new Error('Bad admin key');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    }
+
+    // ── Rendering ───────────────────────────────────────────────────────────
+    function fmtDate(unix) {
+      if (!unix) return '';
+      const d = new Date(unix * 1000);
+      return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    }
+
+    function renderUnmatched(items) {
+      el.unmatchedCount.textContent = items.length;
+      if (!items.length) {
+        el.unmatched.innerHTML = '<div class="empty">No unmatched requests. 🎉</div>';
+        return;
+      }
+      el.unmatched.innerHTML = items.map(r => `
+        <div class="row-item" data-id="${r.id}">
+          <div class="text">${escapeHtml(r.text)}</div>
+          <div class="meta">Received ${fmtDate(r.createdAt)}</div>
+          <div class="search-row">
+            <input type="search" class="search-input" placeholder="Search TMDB (movie or TV)…" value="${escapeHtml(r.text)}">
+            <button class="primary search-btn">Search</button>
+            <button class="danger delete-btn" title="Delete request">×</button>
+          </div>
+          <div class="results"></div>
+        </div>
+      `).join('');
+    }
+
+    // Matched section is purely DOM-driven: appendMatched on a successful match,
+    // remove the row on unmatch/delete. Nothing is loaded from the server, so a
+    // page reload starts it empty.
+    function matchedRows() {
+      return el.matched.querySelectorAll('.row-item');
+    }
+    function updateMatchedCount() {
+      const n = matchedRows().length;
+      el.matchedCount.textContent = n;
+      if (n === 0) el.matched.innerHTML = '<div class="empty">No matches yet on this page.</div>';
+    }
+    function clearMatched() {
+      el.matched.innerHTML = '';
+      updateMatchedCount();
+    }
+    function appendMatched(r, posterUrl) {
+      // Remove the empty-state placeholder if present.
+      const empty = el.matched.querySelector('.empty');
+      if (empty) empty.remove();
+      const node = document.createElement('div');
+      node.className = 'row-item matched-card';
+      node.dataset.id = r.id;
+      node.innerHTML = `
+        ${posterUrl ? `<img src="${posterUrl}" alt="">` : `<img alt="">`}
+        <div class="info">
+          <div class="title">
+            ${escapeHtml(r.matchedTitle || 'Unknown')}
+            ${r.matchedYear ? `<span style="color:var(--muted);font-weight:400;">(${r.matchedYear})</span>` : ''}
+            <span class="badge ${r.mediaType}">${r.mediaType}</span>
+          </div>
+          <div class="orig">From: "${escapeHtml(r.text)}"</div>
+          <div class="meta" style="margin-top:4px;">Matched ${fmtDate(r.matchedAt)}</div>
+        </div>
+        <div class="actions">
+          <button class="unmatch-btn" title="Unmatch (return to Unmatched)">Unmatch</button>
+          <button class="danger delete-btn" title="Delete">×</button>
+        </div>
+      `;
+      el.matched.prepend(node);
+      el.matchedCount.textContent = matchedRows().length;
+    }
+
+    // ── Main load ───────────────────────────────────────────────────────────
+    async function loadAll() {
+      try {
+        setStatus('Loading…', 'info');
+        const data = await apiFetch('/api/text-requests');
+        const unmatched = (data.requests || []).filter(r => !r.tmdbId);
+        renderUnmatched(unmatched);
+        showAuthed(true);
+        setStatus(`Loaded ${unmatched.length} unmatched.`, 'ok');
+      } catch (err) {
+        setStatus('Load failed: ' + err.message, 'err');
+        if (err.message === 'Bad admin key') showAuthed(false);
+      }
+    }
+    el.loadBtn.addEventListener('click', loadAll);
+
+    el.seedBtn.addEventListener('click', async () => {
+      const texts = el.seedBox.value.split('\n').map(s => s.trim()).filter(Boolean);
+      if (!texts.length) { el.seedStatus.textContent = 'Enter at least one title.'; el.seedStatus.className = 'status err'; return; }
+      el.seedStatus.textContent = 'Adding…'; el.seedStatus.className = 'status info';
+      try {
+        const res = await apiFetch('/api/text-requests', { method: 'POST', body: JSON.stringify({ texts }) });
+        el.seedBox.value = '';
+        el.seedStatus.textContent = `Added ${res.added.length}.`; el.seedStatus.className = 'status ok';
+        loadAll();
+      } catch (err) {
+        el.seedStatus.textContent = 'Add failed: ' + err.message; el.seedStatus.className = 'status err';
+      }
+    });
+
+    // ── Event delegation: search / pick result / delete / unmatch ───────────
+    el.unmatched.addEventListener('click', async (e) => {
+      const row = e.target.closest('.row-item');
+      if (!row) return;
+      const id = parseInt(row.dataset.id, 10);
+
+      if (e.target.classList.contains('search-btn')) {
+        const q = row.querySelector('.search-input').value.trim();
+        if (!q) return;
+        const resultsEl = row.querySelector('.results');
+        resultsEl.classList.add('open');
+        resultsEl.innerHTML = '<div class="empty">Searching…</div>';
+        try {
+          const data = await apiFetch('/api/text-requests/search?q=' + encodeURIComponent(q));
+          const results = data.results || [];
+          if (!results.length) { resultsEl.innerHTML = '<div class="empty">No results.</div>'; return; }
+          resultsEl.innerHTML = results.map(r => `
+            <div class="result" data-tmdb="${r.tmdbId}" data-type="${r.mediaType}" data-title="${escapeHtml(r.title)}" data-year="${r.year || ''}">
+              ${r.posterUrl ? `<img src="${r.posterUrl}" alt="">` : `<img alt="">`}
+              <div>
+                <div class="title">${escapeHtml(r.title)} ${r.year ? `<span style="color:var(--muted);font-weight:400;">(${r.year})</span>` : ''}
+                  <span class="badge ${r.mediaType}">${r.mediaType}</span>
+                </div>
+              </div>
+            </div>
+          `).join('');
+        } catch (err) {
+          resultsEl.innerHTML = `<div class="empty" style="color:#f87171;">Search failed: ${escapeHtml(err.message)}</div>`;
+        }
+      } else if (e.target.classList.contains('delete-btn')) {
+        if (!confirm('Delete this request?')) return;
+        try {
+          await apiFetch(`/api/text-requests/${id}`, { method: 'DELETE' });
+          loadAll();
+        } catch (err) { setStatus('Delete failed: ' + err.message, 'err'); }
+      } else {
+        const result = e.target.closest('.result');
+        if (!result) return;
+        const body = {
+          tmdbId: parseInt(result.dataset.tmdb, 10),
+          mediaType: result.dataset.type,
+          title: result.dataset.title,
+          year: result.dataset.year ? parseInt(result.dataset.year, 10) : null,
+        };
+        const posterImg = result.querySelector('img');
+        try {
+          const res = await apiFetch(`/api/text-requests/${id}/match`, { method: 'POST', body: JSON.stringify(body) });
+          appendMatched(res.request, posterImg?.src || null);
+          setStatus(`Matched to "${body.title}".`, 'ok');
+          loadAll();  // refresh unmatched list (the matched item drops off it)
+        } catch (err) { setStatus('Match failed: ' + err.message, 'err'); }
+      }
+    });
+
+    el.matched.addEventListener('click', async (e) => {
+      const row = e.target.closest('.row-item');
+      if (!row) return;
+      const id = parseInt(row.dataset.id, 10);
+      if (e.target.classList.contains('unmatch-btn')) {
+        try {
+          await apiFetch(`/api/text-requests/${id}/match`, { method: 'DELETE' });
+          row.remove();
+          updateMatchedCount();
+          loadAll();
+        } catch (err) { setStatus('Unmatch failed: ' + err.message, 'err'); }
+      } else if (e.target.classList.contains('delete-btn')) {
+        if (!confirm('Delete this request entirely?')) return;
+        try {
+          await apiFetch(`/api/text-requests/${id}`, { method: 'DELETE' });
+          row.remove();
+          updateMatchedCount();
+        } catch (err) { setStatus('Delete failed: ' + err.message, 'err'); }
+      }
+    });
+
+    // Page starts with empty matched section regardless of server state.
+    clearMatched();
+    // Auto-load unmatched if we have a remembered key.
+    if (saved) loadAll();
+  </script>
+</body>
+</html>

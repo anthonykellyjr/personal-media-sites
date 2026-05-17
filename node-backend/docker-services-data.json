@@ -1,0 +1,150 @@
+{
+  "tower": {
+    "homepage": {
+      "website": "http://10.0.0.222:3000",
+      "domain": "",
+      "description": "Dashboard for all services",
+      "active": true
+    },
+    "node-backend": {
+      "website": "http://10.0.0.222:3001",
+      "domain": "",
+      "description": "API backend service",
+      "active": true
+    },
+    "join-request-static": {
+      "website": "http://10.0.0.222:8092",
+      "domain": "",
+      "description": "Join request form",
+      "active": true
+    },
+    "request-form-static": {
+      "website": "http://10.0.0.222:8091",
+      "domain": "",
+      "description": "General request form",
+      "active": true
+    },
+    "sonarr": {
+      "website": "http://10.0.0.222:8989",
+      "domain": "",
+      "description": "TV show manager",
+      "active": true
+    },
+    "mylar3": {
+      "website": "http://10.0.0.222:8090",
+      "domain": "",
+      "description": "Comic book manager",
+      "active": false
+    },
+    "kometa": {
+      "website": "",
+      "domain": "",
+      "description": "Plex metadata manager",
+      "active": true
+    },
+    "portainer": {
+      "website": "http://10.0.0.222:9443",
+      "domain": "",
+      "description": "Docker management UI",
+      "active": true
+    },
+    "overseerr": {
+      "website": "http://10.0.0.222:5055",
+      "domain": "",
+      "description": "Media request system",
+      "active": true
+    },
+    "filebrowser": {
+      "website": "http://10.0.0.222:8585",
+      "domain": "",
+      "description": "Web-based file manager",
+      "active": true
+    },
+    "sabnzbd": {
+      "website": "http://10.0.0.222:8080",
+      "domain": "",
+      "description": "Usenet downloader",
+      "active": true
+    },
+    "speedtest": {
+      "website": "http://10.0.0.222:8765",
+      "domain": "",
+      "description": "Network speed tracker",
+      "active": true
+    },
+    "ntfy": {
+      "website": "http://10.0.0.222:9090",
+      "domain": "",
+      "description": "Push notification service",
+      "active": true
+    },
+    "qbittorrent": {
+      "website": "http://10.0.0.222:8282",
+      "domain": "",
+      "description": "Torrent client",
+      "active": false
+    },
+    "radarr": {
+      "website": "http://10.0.0.222:7878",
+      "domain": "",
+      "description": "Movie manager",
+      "active": true
+    },
+    "npm": {
+      "website": "http://10.0.0.222:8181",
+      "domain": "",
+      "description": "Nginx Proxy Manager",
+      "active": true
+    },
+    "prowlarr": {
+      "website": "http://10.0.0.222:9696",
+      "domain": "",
+      "description": "Indexer manager",
+      "active": true
+    },
+    "plex": {
+      "website": "http://10.0.0.222:32400",
+      "domain": "",
+      "description": "Media server",
+      "active": true
+    },
+    "bazarr": {
+      "website": "http://10.0.0.222:6767",
+      "domain": "",
+      "description": "Subtitle manager",
+      "active": true
+    },
+    "glances": {
+      "website": "",
+      "domain": "",
+      "description": "System monitoring",
+      "active": true
+    },
+    "cloudflared": {
+      "website": "",
+      "domain": "",
+      "description": "Cloudflare tunnel",
+      "active": true
+    }
+  },
+  "mac": {
+    "ntfy": {
+      "website": "http://10.0.0.223:9090",
+      "domain": "",
+      "description": "Push notification service",
+      "active": true
+    },
+    "tautulli": {
+      "website": "http://10.0.0.223:8181",
+      "domain": "",
+      "description": "Plex stats & monitoring",
+      "active": true
+    },
+    "uptime-kuma": {
+      "website": "http://10.0.0.223:3001",
+      "domain": "",
+      "description": "Service uptime monitor",
+      "active": true
+    }
+  }
+}

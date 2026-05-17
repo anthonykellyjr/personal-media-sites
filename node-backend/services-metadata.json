@@ -1,0 +1,30 @@
+{
+  "tower": {
+    "homepage": { "port": "3000", "cpu": "Low", "ram": "50MB", "network": "-", "disk": "-", "gpu": "-" },
+    "node-backend": { "port": "3001", "cpu": "Low", "ram": "100MB", "network": "-", "disk": "-", "gpu": "-" },
+    "join-request-static": { "port": "8092", "cpu": "Minimal", "ram": "10MB", "network": "-", "disk": "-", "gpu": "-" },
+    "request-form-static": { "port": "8091", "cpu": "Minimal", "ram": "10MB", "network": "-", "disk": "-", "gpu": "-" },
+    "sonarr": { "port": "8989", "cpu": "Medium", "ram": "200MB", "network": "-", "disk": "High", "gpu": "-" },
+    "mylar3": { "port": "8090", "cpu": "Low", "ram": "150MB", "network": "-", "disk": "-", "gpu": "-" },
+    "kometa": { "port": "-", "cpu": "Low", "ram": "100MB", "network": "-", "disk": "-", "gpu": "-" },
+    "portainer": { "port": "9443, 8000", "cpu": "Low", "ram": "50MB", "network": "-", "disk": "-", "gpu": "-" },
+    "overseerr": { "port": "5055", "cpu": "Low", "ram": "150MB", "network": "-", "disk": "-", "gpu": "-" },
+    "filebrowser": { "port": "8585", "cpu": "Low", "ram": "30MB", "network": "-", "disk": "-", "gpu": "-" },
+    "sabnzbd": { "port": "8080", "cpu": "High*", "ram": "200MB", "network": "High", "disk": "-", "gpu": "-" },
+    "speedtest": { "port": "8765", "cpu": "Low", "ram": "50MB", "network": "Burst", "disk": "-", "gpu": "-" },
+    "ntfy": { "port": "9090", "cpu": "Minimal", "ram": "20MB", "network": "-", "disk": "-", "gpu": "-" },
+    "qbittorrent": { "port": "8282", "cpu": "High*", "ram": "300MB", "network": "High", "disk": "-", "gpu": "-" },
+    "radarr": { "port": "7878", "cpu": "Medium", "ram": "200MB", "network": "-", "disk": "High", "gpu": "-" },
+    "npm": { "port": "80, 443, 8181", "cpu": "Low", "ram": "100MB", "network": "-", "disk": "-", "gpu": "-" },
+    "prowlarr": { "port": "9696", "cpu": "Low", "ram": "150MB", "network": "-", "disk": "-", "gpu": "-" },
+    "plex": { "port": "32400", "cpu": "High*", "ram": "500MB+", "network": "High", "disk": "-", "gpu": "Yes" },
+    "bazarr": { "port": "6767", "cpu": "Low", "ram": "100MB", "network": "-", "disk": "-", "gpu": "-" },
+    "glances": { "port": "-", "cpu": "Low", "ram": "100MB", "network": "-", "disk": "-", "gpu": "-" },
+    "cloudflared": { "port": "-", "cpu": "Minimal", "ram": "30MB", "network": "-", "disk": "-", "gpu": "-" }
+  },
+  "mac": {
+    "ntfy": { "port": "9090", "cpu": "Minimal", "ram": "20MB", "network": "-", "disk": "-", "gpu": "-" },
+    "tautulli": { "port": "8181", "cpu": "Low", "ram": "100MB", "network": "-", "disk": "-", "gpu": "-" },
+    "uptime-kuma": { "port": "3001", "cpu": "Low", "ram": "100MB", "network": "-", "disk": "-", "gpu": "-" }
+  }
+}

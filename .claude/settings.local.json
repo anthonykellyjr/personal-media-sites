@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//home/anthony/DockerApps/**)",
+      "Bash(docker ps:*)",
+      "Bash(crontab -l)",
+      "Read(//etc/cron.d/**)",
+      "Bash(systemctl list-timers:*)"
+    ]
+  }
+}

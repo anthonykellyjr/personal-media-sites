@@ -1,0 +1,662 @@
+const express = require('express');
+const nodemailer = require('nodemailer');
+const fetch = require('node-fetch');
+const fs = require('fs').promises;
+const path = require('path');
+require('dotenv').config();
+
+const app = express();
+const port = process.env.PORT || 3001;
+
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+// Serve static files from docker-services directory
+app.use('/docker-services', express.static(path.join(__dirname, '../docker-services')));
+// Enhanced CORS configuration
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    
+    // Exact matches
+    const exactOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
+    
+    // Pattern matches (only if you added ALLOWED_ORIGIN_PATTERNS to .env)
+    let isAllowed = exactOrigins.includes(origin);
+    
+    if (!isAllowed && process.env.ALLOWED_ORIGIN_PATTERNS) {
+        const patterns = process.env.ALLOWED_ORIGIN_PATTERNS.split(',');
+        isAllowed = patterns.some(pattern => {
+            // Simple wildcard matching
+            if (pattern.includes('*')) {
+                const regex = new RegExp('^' + pattern
+                    .replace(/\./g, '\\.')
+                    .replace(/\*/g, '.*') + '$');
+                return regex.test(origin);
+            }
+            return pattern === origin;
+        });
+    }
+    
+    if (isAllowed || !origin) {
+        res.header('Access-Control-Allow-Origin', origin || '*');
+    }
+    
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(200);
+    }
+    
+    next();
+});
+
+// Request logging middleware
+app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - ${req.ip}`);
+    next();
+});
+
+// Initialize email transporter if credentials are provided
+let emailTransporter = null;
+if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+    emailTransporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS
+        }
+    });
+    console.log('Email service initialized');
+}
+
+// ============= UTILITY FUNCTIONS =============
+
+// Send notification to ntfy
+async function sendNtfyNotification(topic, title, message, options = {}) {
+    const ntfyUrl = process.env.NTFY_URL || 'https://ntfy.webheadmedia.com';
+    
+    try {
+        const response = await fetch(`${ntfyUrl}/${topic}`, {
+            method: 'POST',
+            headers: {
+                'Title': title,
+                'Priority': options.priority || '3',
+                'Tags': options.tags || 'notification',
+                ...(process.env.NTFY_AUTH && { 'Authorization': `Basic ${process.env.NTFY_AUTH}` })
+            },
+            body: message
+        });
+        
+        if (!response.ok) {
+            throw new Error(`ntfy responded with ${response.status}`);
+        }
+        
+        return { success: true };
+    } catch (error) {
+        console.error('ntfy error:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+// Send email
+async function sendEmail(to, subject, htmlContent, textContent) {
+    if (!emailTransporter) {
+        console.warn('Email service not configured');
+        return { success: false, error: 'Email service not configured' };
+    }
+    
+    try {
+        await emailTransporter.sendMail({
+            from: process.env.EMAIL_USER,
+            to: to,
+            subject: subject,
+            html: htmlContent,
+            text: textContent
+        });
+        return { success: true };
+    } catch (error) {
+        console.error('Email error:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+// Log to CSV
+async function logToCSV(filename, data) {
+    try {
+        const logDir = path.join(__dirname, 'logs');
+        await fs.mkdir(logDir, { recursive: true });
+        
+        const filepath = path.join(logDir, filename);
+        const csvLine = Object.values(data).map(v => `"${v}"`).join(',') + '\n';
+        
+        await fs.appendFile(filepath, csvLine);
+        return { success: true };
+    } catch (error) {
+        console.error('CSV logging error:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+// ============= API ENDPOINTS =============
+
+// Health check
+app.get('/api/health', (req, res) => {
+    res.json({ 
+        status: 'ok', 
+        timestamp: new Date().toISOString(),
+        services: {
+            email: !!emailTransporter,
+            ntfy: !!process.env.NTFY_URL || true
+        },
+        version: '1.0.0'
+    });
+});
+
+// Root endpoint
+app.get('/', (req, res) => {
+    res.json({
+        message: 'WebHead Media API Server',
+        endpoints: [
+            'GET api/health',
+            'POST /api/join-request',
+            'POST /api/media-request',
+            'POST /api/contact',
+            'POST /api/webhook',
+            'GET /api/status/:service',
+            'GET /api/backup-status',
+            'GET /api/backup-details'
+        ]
+    });
+});
+
+// Plex join request
+app.post('/api/join-request', async (req, res) => {
+    const { name, email } = req.body;
+    
+    if (!name || !email) {
+        return res.status(400).json({ error: 'Name and email are required' });
+    }
+    
+    const timestamp = new Date().toISOString();
+    const results = {};
+    
+    // Send notifications
+    results.ntfy = await sendNtfyNotification(
+        'plex-requests',
+        'New Plex Join Request',
+        `Name: ${name}\nEmail: ${email}\nTime: ${new Date().toLocaleString()}`,
+        { tags: 'movie_camera,new_user' }
+    );
+    
+    const emailHtml = `
+        <h2>New Plex Join Request</h2>
+        <p><strong>Name:</strong> ${name}</p>
+        <p><strong>Email:</strong> ${email}</p>
+        <p><strong>Time:</strong> ${new Date().toLocaleString()}</p>
+    `;
+    
+    results.email = await sendEmail(
+        process.env.ADMIN_EMAIL || 'anthony.d.kelly@gmail.com',
+        `New Plex Join Request - ${name}`,
+        emailHtml,
+        `New Plex Join Request\n\nName: ${name}\nEmail: ${email}`
+    );
+    
+    // Log to CSV
+    results.log = await logToCSV('plex-requests.csv', {
+        timestamp,
+        name,
+        email
+    });
+    
+    // Return success if at least one notification worked
+    if (results.ntfy.success || results.email.success) {
+        res.json({ 
+            success: true, 
+            message: 'Request processed successfully',
+            results 
+        });
+    } else {
+        res.status(500).json({ 
+            error: 'Failed to process request',
+            results 
+        });
+    }
+});
+
+// Media request endpoint (for Overseerr-style requests)
+app.post('/api/media-request', async (req, res) => {
+    const { type, title, user, tmdbId } = req.body;
+    
+    if (!type || !title) {
+        return res.status(400).json({ error: 'Type and title are required' });
+    }
+    
+    const results = {};
+    
+    results.ntfy = await sendNtfyNotification(
+        'media-requests',
+        `� New ${type} Request`,
+        `User: ${user || 'Anonymous'}\nTitle: ${title}\nTMDB ID: ${tmdbId || 'N/A'}`,
+        { tags: type === 'movie' ? 'film' : 'tv' }
+    );
+    
+    res.json({ success: results.ntfy.success, results });
+});
+
+// Generic contact form
+app.post('/api/contact', async (req, res) => {
+    const { name, email, subject, message } = req.body;
+    
+    if (!email || !message) {
+        return res.status(400).json({ error: 'Email and message are required' });
+    }
+    
+    const results = {};
+    
+    results.ntfy = await sendNtfyNotification(
+        'contact-form',
+        subject || 'New Contact Form Submission',
+        `From: ${name || 'Anonymous'} <${email}>\n\n${message}`,
+        { tags: 'email,contact' }
+    );
+    
+    if (emailTransporter) {
+        const emailHtml = `
+            <h2>Contact Form Submission</h2>
+            <p><strong>From:</strong> ${name || 'Anonymous'} &lt;${email}&gt;</p>
+            <p><strong>Subject:</strong> ${subject || 'No subject'}</p>
+            <hr>
+            <p>${message.replace(/\n/g, '<br>')}</p>
+        `;
+        
+        results.email = await sendEmail(
+            process.env.ADMIN_EMAIL || 'anthony.d.kelly@gmail.com',
+            `Contact Form: ${subject || 'New Message'}`,
+            emailHtml,
+            `From: ${name} <${email}>\nSubject: ${subject}\n\n${message}`
+        );
+    }
+    
+    res.json({ 
+        success: results.ntfy.success || results.email?.success || false,
+        results 
+    });
+});
+
+// Simpler docker-stats API
+// Simpler docker stats endpoint that just reads the file
+app.get('/api/docker-stats', async (req, res) => {
+    try {
+        const statsData = await fs.readFile('/app/docker-stats.json', 'utf8');
+        if (!statsData.trim()) {
+            return res.status(503).json({ error: 'Stats file is empty. Waiting for data...' });
+        }
+        
+        const lines = statsData.trim().split('\n').filter(line => line);
+        const containers = lines.map(line => {
+            const data = JSON.parse(line);
+            return {
+                name: data.Name,
+                cpu: data.CPUPerc,
+                memory: data.MemUsage,
+                memoryPerc: data.MemPerc,
+                netIO: data.NetIO,
+                blockIO: data.BlockIO,
+                pids: data.PIDs,
+                status: data.CPUPerc !== "0.00%" ? 'running' : 'idle'
+            };
+        });
+        
+        res.json({
+            containers: containers,
+            summary: {
+                total: containers.length,
+                running: containers.filter(c => c.status === 'running').length,
+                idle: containers.filter(c => c.status === 'idle').length
+            }
+        });
+    } catch (error) {
+        console.error('Error reading docker stats:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Test endpoint
+app.get('/api/test', (req, res) => {
+    res.json({ status: 'ok', message: 'API is working' });
+});
+
+// Generic webhook endpoint
+app.post('/api/webhook/:service', async (req, res) => {
+    const { service } = req.params;
+    const payload = req.body;
+    
+    console.log(`Webhook received for ${service}:`, JSON.stringify(payload, null, 2));
+    
+    // Send to ntfy
+    await sendNtfyNotification(
+        `webhook-${service}`,
+        `Webhook: ${service}`,
+        JSON.stringify(payload, null, 2),
+        { tags: 'webhook,automated' }
+    );
+    
+    // Log webhook
+    await logToCSV(`webhooks-${service}.csv`, {
+        timestamp: new Date().toISOString(),
+        service,
+        payload: JSON.stringify(payload)
+    });
+    
+    res.json({ success: true, message: 'Webhook processed' });
+});
+
+// Service status endpoint
+app.get('/api/status/:service', async (req, res) => {
+    const { service } = req.params;
+    
+    const services = {
+        plex: 'https://plex.webheadmedia.com',
+        overseerr: 'https://overseerr.webheadmedia.com',
+        tautulli: 'https://tautulli.webheadmedia.com',
+        ntfy: process.env.NTFY_URL || 'https://ntfy.webheadmedia.com'
+    };
+    
+    if (!services[service]) {
+        return res.status(404).json({ error: 'Service not found' });
+    }
+    
+    try {
+        const response = await fetch(services[service], { 
+            timeout: 5000,
+            headers: { 'User-Agent': 'WebHead-Monitor/1.0' }
+        });
+        
+        res.json({
+            service,
+            status: response.ok ? 'online' : 'error',
+            statusCode: response.status,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        res.json({
+            service,
+            status: 'offline',
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// Add this code to your index.js file
+// Place it after the other endpoint definitions (around line 280, before the 404 handler)
+
+// Backup status endpoint
+app.get('/api/backup-status', async (req, res) => {
+    const { execSync } = require('child_process');
+    
+    try {
+        // Check if backup marker exists
+        const backupMarker = '/mnt/backup_pool/last_successful_backup';
+        
+        try {
+            await fs.access(backupMarker);
+        } catch (error) {
+            return res.json({
+                status: 'error',
+                message: 'No backup found',
+                color: 'red',
+                lastBackup: null,
+                details: 'Backup system not initialized'
+            });
+        }
+        
+        // Get last backup time
+        const stats = await fs.stat(backupMarker);
+        const lastBackupTime = stats.mtime;
+        const now = new Date();
+        const hoursAgo = (now - lastBackupTime) / (1000 * 60 * 60);
+        
+        // Check if backup is currently running
+        let isRunning = false;
+        try {
+            execSync('pgrep -f tower-backup.sh', { encoding: 'utf8' });
+            isRunning = true;
+        } catch (e) {
+            // Process not found, backup not running
+        }
+        
+        // Get backup sizes
+        let backupSizes = {};
+        try {
+            const sources = ['storage', 'docker_apps', 'system'];
+            for (const source of sources) {
+                const sourcePath = `/mnt/backup_pool/${source}`;
+                try {
+                    await fs.access(sourcePath);
+                    const size = execSync(`du -sh ${sourcePath} | awk '{print $1}'`, { encoding: 'utf8' }).trim();
+                    backupSizes[source] = size;
+                } catch (e) {
+                    // Source doesn't exist yet
+                }
+            }
+        } catch (e) {
+            console.error('Error getting backup sizes:', e);
+        }
+        
+        // Get available space
+        let availableSpace = 'Unknown';
+        try {
+            availableSpace = execSync("df -h /mnt/backup_pool | awk 'NR==2 {print $4}'", { encoding: 'utf8' }).trim();
+        } catch (e) {
+            console.error('Error getting available space:', e);
+        }
+        
+        // Determine status
+        let status, color, message;
+        
+        if (isRunning) {
+            status = 'running';
+            color = 'blue';
+            message = 'Backup in progress...';
+        } else if (hoursAgo > 26) {
+            status = 'warning';
+            color = 'yellow';
+            message = `Last backup: ${hoursAgo.toFixed(1)} hours ago`;
+        } else {
+            status = 'success';
+            color = 'green';
+            message = `Last backup: ${hoursAgo.toFixed(1)} hours ago`;
+        }
+        
+        // Format response for Homepage widget
+        res.json({
+            status: status,
+            message: message,
+            color: color,
+            lastBackup: lastBackupTime,
+            hoursAgo: hoursAgo.toFixed(1),
+            isRunning: isRunning,
+            sizes: backupSizes,
+            availableSpace: availableSpace,
+            details: {
+                storage: backupSizes.storage || 'N/A',
+                docker: backupSizes.docker_apps || 'N/A',
+                system: backupSizes.system || 'N/A',
+                free: availableSpace
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error in backup-status endpoint:', error);
+        res.status(500).json({
+            status: 'error',
+            message: 'Failed to check backup status',
+            color: 'red',
+            error: error.message
+        });
+    }
+});
+
+// Optional: Backup details endpoint  
+app.get('/api/backup-details', async (req, res) => {
+    const { execSync } = require('child_process');
+    
+    try {
+        const logDir = '/var/log/tower-backup';
+        
+        // Get latest log file
+        let latestLog = null;
+        try {
+            const files = await fs.readdir(logDir);
+            const logFiles = files
+                .filter(f => f.startsWith('backup-') && f.endsWith('.log'))
+                .map(f => ({ name: f, path: path.join(logDir, f) }));
+            
+            // Get file stats and sort by modification time
+            const filesWithStats = await Promise.all(
+                logFiles.map(async (file) => ({
+                    ...file,
+                    mtime: (await fs.stat(file.path)).mtime
+                }))
+            );
+            
+            filesWithStats.sort((a, b) => b.mtime - a.mtime);
+            
+            if (filesWithStats.length > 0) {
+                latestLog = filesWithStats[0].name;
+            }
+        } catch (e) {
+            console.error('Error reading log directory:', e);
+        }
+        
+        // Read last few lines of latest log
+        let logTail = [];
+        if (latestLog) {
+            try {
+                const logContent = execSync(`tail -20 ${path.join(logDir, latestLog)}`, { encoding: 'utf8' });
+                logTail = logContent.split('\n').filter(line => line.trim());
+            } catch (e) {
+                console.error('Error reading log file:', e);
+            }
+        }
+        
+        res.json({
+            latestLog: latestLog,
+            logTail: logTail,
+            logDir: logDir
+        });
+        
+    } catch (error) {
+        res.status(500).json({
+            error: error.message
+        });
+    }
+});
+
+// Data file path for docker services
+const DOCKER_DATA_FILE = path.join(__dirname, 'docker-services-data.json');
+
+// Get docker services data
+// Get docker services data
+app.get('/api/docker-services', async (req, res) => {
+    try {
+        const data = await fs.readFile(DOCKER_DATA_FILE, 'utf8');
+        res.json(JSON.parse(data));
+    } catch (error) {
+        if (error.code === 'ENOENT') {
+            // Return empty data structure instead of 404 if returns no save file yet
+            res.json({ tower: {}, mac: {} });
+        } else {
+            console.error('Error reading docker services data:', error);
+            res.status(500).json({ error: 'Failed to read data' });
+        }
+    }
+});
+
+// Save docker services data
+app.post('/api/docker-services', async (req, res) => {
+    try {
+        const data = req.body;
+        await fs.writeFile(DOCKER_DATA_FILE, JSON.stringify(data, null, 2));
+        res.json({ message: 'Data saved successfully' });
+    } catch (error) {
+        console.error('Error saving docker services data:', error);
+        res.status(500).json({ error: 'Failed to save data' });
+    }
+});
+// Get service metadata
+app.get('/api/services-metadata', async (req, res) => {
+    try {
+        const metadataPath = path.join(__dirname, 'services-metadata.json');
+        const data = await fs.readFile(metadataPath, 'utf8');
+        res.json(JSON.parse(data));
+    } catch (error) {
+        console.error('Error reading service metadata:', error);
+        res.status(500).json({ error: 'Failed to read metadata' });
+    }
+});
+
+// Better formatted docker-summary
+// Better formatted docker-summary
+app.get('/api/docker-summary', async (req, res) => {
+    try {
+        const statsData = await fs.readFile('/app/docker-stats.json', 'utf8');
+        if (!statsData.trim()) {
+            return res.status(503).json({ error: 'Stats file is empty' });
+        }
+        
+        const lines = statsData.trim().split('\n');
+        const containers = lines.map(line => JSON.parse(line));
+        
+        // Return just the top 5 by CPU in a cleaner format
+        const topContainers = containers
+            .sort((a, b) => parseFloat(b.CPUPerc) - parseFloat(a.CPUPerc))
+            .slice(0, 5)
+            .map(c => `${c.Name}: ${c.CPUPerc}/${c.MemPerc}`)
+            .join(' • ');
+        
+        res.json({ 
+            containers: topContainers,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+        console.debug('refreshInterval error:',error);
+    }
+});
+/***** ADD EVERY SERVICE BEFORE THE 404 HANDLER!! ****/
+
+// 404 handler
+app.use((req, res) => {
+    res.status(404).json({ 
+        error: 'Endpoint not found',
+        path: req.path,
+        method: req.method
+    });
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+    console.error('Server error:', err);
+    res.status(500).json({ 
+        error: 'Internal server error',
+        message: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+});
+
+// Start server
+app.listen(port, '0.0.0.0', () => {
+    console.log(`� WebHead Media API Server running on port ${port}`);
+    console.log(`� Health check: http://localhost:${port}/health`);
+    console.log(`� Email service: ${emailTransporter ? 'configured' : 'not configured'}`);
+    console.log(`� Ntfy service: ${process.env.NTFY_URL || 'https://ntfy.webheadmedia.com'}`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+    console.log('SIGTERM received, shutting down gracefully');
+    process.exit(0);
+});

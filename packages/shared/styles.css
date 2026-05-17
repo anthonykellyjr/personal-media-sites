@@ -1,0 +1,17 @@
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Custom thin scrollbar */
+.thin-scrollbar::-webkit-scrollbar { width: 4px; }
+.thin-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.thin-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+.thin-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
+
+/* Sortable drag-and-drop states */
+.sortable-ghost {
+  opacity: 0.4;
+  border: 2px dashed var(--sortable-color, rgba(168, 85, 247, 0.5)) !important;
+}
+.sortable-chosen { opacity: 0.8; }
+.sortable-drag { opacity: 0.9; }
