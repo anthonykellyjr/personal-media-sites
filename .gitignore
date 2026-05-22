@@ -4,6 +4,7 @@ dist/
 # Runtime state written by the running APIs (per-deployment data, not source)
 status-hub/announcements.json
 status-hub/text_requests.json
+status-hub/hidden_fulfilled.json
 
 # Local-only env files (real values live in ~/DockerApps/.env)
 .env
@@ -16,3 +17,6 @@ status-hub/text_requests.json
 .vscode/
 .idea/
 *.swp
+
+# Local tooling
+.claude/

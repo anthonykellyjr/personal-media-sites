@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>WebHead Media - Announcements</title>
-  <link rel="icon" type="image/png" href="/status/images/favicon.png">
+  <link rel="icon" type="image/png" href="/home/images/favicon.png">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     :root {
@@ -78,8 +78,8 @@
 </head>
 <body>
   <div class="wrap">
-    <h1><span>Status Hub Announcements</span></h1>
-    <p class="sub">Set or clear the banner shown at <a href="/status/" style="color:#c084fc;">akplex.tv/status/</a></p>
+    <h1><span>Announcements</span></h1>
+    <p class="sub">Set or clear the banner shown at <a href="/home/" style="color:#c084fc;">akplex.tv/home/</a></p>
 
     <!-- ── Admin key ── -->
     <div class="card">
@@ -140,7 +140,7 @@
       <div class="status info" id="status">Loading current announcement…</div>
     </div>
 
-    <div class="links"><a href="/status/">← Back to Status Hub</a></div>
+    <div class="links"><a href="/home/">← Back to Home</a></div>
   </div>
 
   <script>
@@ -281,7 +281,7 @@
       const expiresAt = Number.isFinite(hours) ? Date.now() + hours * 3600 * 1000 : null;
       post(
         { enabled, message, severity: el.severity.value, dismissible: el.dismissible.checked, expiresAt },
-        enabled ? 'Banner is live on the Status Hub.' : 'Banner saved (disabled — nothing shown).'
+        enabled ? 'Banner is live on the home page.' : 'Banner saved (disabled — nothing shown).'
       );
     });
 

@@ -9,6 +9,18 @@ import blockbusterImg from './assets/blockbuster.jpg'
 import technicalDiffImg from './assets/technical-diff.webp'
 import reportBugsImg from './assets/report-bugs.png'
 
+// ─── Header widget toggles ──────────────────────────────────────────────
+// Build-time on/off switches for the header. Flip a boolean and rebuild
+// (./deploy.sh status-hub) to hide/show a widget without touching markup.
+// Order in the header follows template order, not this object.
+const HEADER_WIDGETS = {
+  bandwidth: true,     // upload Mbps pill
+  cpu: true,           // CPU % pill
+  gpu: true,           // GPU pill (temp + utilization combined)
+  ram: true,           // RAM % pill
+  activeStreams: true, // "● N Active" streams pill
+}
+
 // Announcement
 const announcement = ref({ enabled: false, message: '', severity: 'info', dismissible: true, dismissed: false })
 
@@ -191,7 +203,9 @@ const calendarDays = computed(() => {
   const now = new Date()
   const days = []
 
-  for (let i = -1; i < 3; i++) {
+  // Yesterday (i=-1) through 6 days out (i=5) = 7 days total.
+  // Backend already fetches now-2 → now+7, so no extra Sonarr cost.
+  for (let i = -1; i < 6; i++) {
     const date = new Date(now)
     date.setDate(date.getDate() + i)
     date.setHours(0, 0, 0, 0)
@@ -206,6 +220,7 @@ const calendarDays = computed(() => {
       date: date.toDateString(),
       dayName,
       dateLabel,
+      isToday: i === 0,
       episodes: []
     })
   }
@@ -310,6 +325,99 @@ const reportIssue = async (result) => {
   searchResults.value = searchResults.value.filter(r => r.ratingKey !== result.ratingKey)
   if (searchResults.value.length === 0) searchQuery.value = ''
   reportedKey.value = null
+}
+
+// ─── Quick Request ──────────────────────────────────────────────────────
+// Modal triggered from the "Quick Request" app cell. Two flows:
+//   1. Type-to-search Seerr; pick a result -> POST /api/quick-request
+//      (creates a real Seerr request AND a matched text_request entry).
+//   2. "Can't find it?" -> free-text falls back to POST /api/anon-request
+//      (creates an unmatched text_request for later admin matching).
+const quickOpen = ref(false)
+const quickQuery = ref('')
+const quickResults = ref([])
+const quickLoading = ref(false)
+const quickDebounce = ref(null)
+const quickSending = ref(false)
+const quickSent = ref(false)
+const quickError = ref('')
+const quickFallbackText = ref('')
+
+const onQuickSearchInput = () => {
+  quickError.value = ''
+  if (quickDebounce.value) { clearTimeout(quickDebounce.value); quickDebounce.value = null }
+  const q = quickQuery.value.trim()
+  if (q.length < 2) { quickResults.value = []; quickLoading.value = false; return }
+  quickLoading.value = true
+  quickDebounce.value = setTimeout(async () => {
+    try {
+      const res = await fetch(`/api/seerr-search?q=${encodeURIComponent(q)}`)
+      const data = await res.json()
+      quickResults.value = data.results || []
+    } catch {
+      quickResults.value = []
+    }
+    quickLoading.value = false
+    quickDebounce.value = null
+  }, 300)
+}
+
+const pickQuickResult = async (r) => {
+  if (quickSending.value) return
+  quickSending.value = true
+  quickError.value = ''
+  try {
+    const res = await fetch('/api/quick-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tmdbId: r.tmdbId, mediaType: r.mediaType, title: r.title, year: r.year })
+    })
+    const data = await res.json()
+    if (res.ok && data.success) {
+      quickSent.value = true
+      quickQuery.value = ''
+      quickResults.value = []
+      setTimeout(() => { quickSent.value = false; quickOpen.value = false }, 1800)
+    } else {
+      quickError.value = data.error || 'Submission failed'
+    }
+  } catch (e) {
+    quickError.value = e.message || 'Network error'
+  }
+  quickSending.value = false
+}
+
+const sendQuickFallback = async () => {
+  const text = quickFallbackText.value.trim()
+  if (!text || quickSending.value) return
+  quickSending.value = true
+  quickError.value = ''
+  try {
+    const res = await fetch('/api/anon-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: text })
+    })
+    if (res.ok) {
+      quickSent.value = true
+      quickFallbackText.value = ''
+      setTimeout(() => { quickSent.value = false; quickOpen.value = false }, 1800)
+    } else {
+      quickError.value = 'Submission failed'
+    }
+  } catch (e) {
+    quickError.value = e.message || 'Network error'
+  }
+  quickSending.value = false
+}
+
+const closeQuickModal = () => {
+  quickOpen.value = false
+  quickQuery.value = ''
+  quickResults.value = []
+  quickFallbackText.value = ''
+  quickError.value = ''
+  quickSent.value = false
 }
 
 // General Message
@@ -435,7 +543,7 @@ const bookmarks = [
   <div class="min-h-screen font-sans relative overflow-hidden text-slate-200 selection:bg-fuchsia-500 selection:text-white">
 
     <div class="fixed inset-0 -z-10"
-         style="background-image: linear-gradient(-225deg, #231557 0%, #44107A 41%, #FF1361 67%, #FFF800 100%);">
+         style="background-image: linear-gradient(-225deg, #0F172A 0%, #1E1B4B 35%, #4C1D95 65%, #BE185D 100%);">
     </div>
 
     <div class="fixed inset-0 opacity-[0.03] pointer-events-none mix-blend-overlay"
@@ -462,18 +570,21 @@ const bookmarks = [
 
     <div class="max-w-[1100px] mx-auto p-3 pt-2 sm:p-4 sm:pt-6 relative z-10 main-content">
 
-      <header class="flex items-center gap-2 sm:gap-3 mb-2 pb-3 border-b border-white/10">
+      <!-- relative z-20 keeps tooltips above the app-cells stacking context below.
+           Each app cell uses backdrop-blur which creates a new stacking context;
+           without this, pill tooltips would be clipped behind the cells. -->
+      <header class="relative z-20 flex items-center gap-2 sm:gap-3 mb-2 pb-3 border-b border-white/10">
         <!-- Logo + name -->
         <div class="flex items-center gap-2 flex-shrink-0">
           <img :src="faviconImg" alt="Plex Hub" class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl shadow-lg shadow-purple-500/20">
-          <span class="text-base sm:text-lg font-bold bg-gradient-to-r from-pink-300 via-purple-300 to-indigo-300 bg-clip-text text-transparent">
+          <span class="text-xl sm:text-2xl font-bold bg-gradient-to-r from-pink-300 via-purple-300 to-indigo-300 bg-clip-text text-transparent tracking-tight">
             Plex Hub
           </span>
         </div>
 
-        <div class="flex-1 flex justify-end items-center gap-2">
+        <div class="flex-1 flex justify-end items-center gap-2 min-w-0">
           <!-- Search bar -->
-          <div class="relative flex-1">
+          <div class="relative flex-1 min-w-0 max-w-xs sm:max-w-sm">
             <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             <input ref="searchInput" type="text" v-model="searchQuery" @input="onSearchInput" @keyup.enter="handleSearch" @keyup.escape="searchQuery = ''; searchResults = []" placeholder="Search library..." class="w-full h-9 bg-white/[0.07] border border-white/25 rounded-xl px-4 pl-9 pr-8 text-sm text-white placeholder-white/40 focus:outline-none focus:border-purple-500/50 focus:bg-white/[0.1] focus:ring-1 focus:ring-purple-500/30 transition-all">
             <kbd v-if="!searchQuery" class="absolute right-3 top-1/2 -translate-y-1/2 hidden sm:inline text-[9px] text-slate-500 bg-white/[0.06] border border-white/10 rounded px-1.5 py-0.5 font-mono">/</kbd>
@@ -508,68 +619,113 @@ const bookmarks = [
             </div>
           </div>
 
-          <!-- Upload bandwidth -->
-          <div class="hidden sm:flex items-center gap-1.5 text-sm text-slate-400 font-mono flex-shrink-0" title="Upload Bandwidth">
-            <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12"/></svg>
-            <span class="text-slate-200 font-bold">{{ stats.bandwidthMbps }}</span>
-            <span class="text-slate-500 text-xs">Mbps</span>
-          </div>
+          <!-- Stat pills: single horizontal row on lg+, wrap on smaller screens.
+               Mobile (<sm) hides all but Active streams to save space.
+               Each pill carries its own tooltip (text-sm, z-[100]) so labels
+               render above the app-cells stacking context below the header. -->
+          <div class="flex flex-wrap items-center justify-end gap-1.5 flex-shrink-0">
+            <!-- CPU% -->
+            <div v-if="HEADER_WIDGETS.cpu && sysStats.cpuPercent != null"
+                 class="group/tip relative hidden sm:flex items-center gap-2 bg-slate-900/60 backdrop-blur-md border border-white/15 rounded-lg px-3 py-1.5 shadow-sm">
+              <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+              <span class="text-sm font-bold text-slate-100 font-mono">{{ sysStats.cpuPercent }}%</span>
+              <span class="absolute top-full mt-2 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap bg-slate-900 text-slate-100 border border-white/20 shadow-xl opacity-0 group-hover/tip:opacity-100 transition-opacity pointer-events-none z-[100]">CPU Usage</span>
+            </div>
 
-          <!-- CPU/GPU stacked -->
-          <div class="hidden sm:flex flex-col gap-0.5 text-xs text-slate-400 font-mono flex-shrink-0">
-            <div v-if="sysStats.cpuPercent != null" class="group/tip relative flex items-center gap-1.5">
-              <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
-              <span class="text-slate-300 font-semibold">{{ sysStats.cpuPercent }}%</span>
-              <span class="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-md text-[9px] font-medium whitespace-nowrap bg-slate-800 text-slate-200 border border-white/10 shadow-lg opacity-0 group-hover/tip:opacity-100 transition-opacity pointer-events-none z-50">CPU Usage</span>
+            <!-- GPU (temp + utilization in one pill) -->
+            <div v-if="HEADER_WIDGETS.gpu && sysStats.gpuTempC != null"
+                 class="group/tip relative hidden sm:flex items-center gap-2 bg-slate-900/60 backdrop-blur-md border border-white/15 rounded-lg px-3 py-1.5 shadow-sm">
+              <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9l2 2 2-2m-2 2v4"/></svg>
+              <span class="text-sm font-bold font-mono" :class="sysStats.gpuTempC >= 80 ? 'text-rose-400' : sysStats.gpuTempC >= 65 ? 'text-amber-400' : 'text-slate-100'">{{ sysStats.gpuTempC }}°</span>
+              <span v-if="sysStats.gpuUtilPercent != null" class="text-slate-600 text-sm">·</span>
+              <span v-if="sysStats.gpuUtilPercent != null" class="text-sm font-bold text-slate-100 font-mono">{{ sysStats.gpuUtilPercent }}%</span>
+              <span class="absolute top-full mt-2 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap bg-slate-900 text-slate-100 border border-white/20 shadow-xl opacity-0 group-hover/tip:opacity-100 transition-opacity pointer-events-none z-[100]">GPU Temp{{ sysStats.gpuUtilPercent != null ? ' · Utilization' : '' }}</span>
             </div>
-            <div v-if="sysStats.gpuTempC != null" class="group/tip relative flex items-center gap-1.5">
-              <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9l2 2 2-2m-2 2v4"/></svg>
-              <span class="font-semibold" :class="sysStats.gpuTempC >= 80 ? 'text-rose-400' : sysStats.gpuTempC >= 65 ? 'text-amber-400' : 'text-slate-300'">{{ sysStats.gpuTempC }}°</span>
-              <span class="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-md text-[9px] font-medium whitespace-nowrap bg-slate-800 text-slate-200 border border-white/10 shadow-lg opacity-0 group-hover/tip:opacity-100 transition-opacity pointer-events-none z-50">GPU Temp</span>
-            </div>
-          </div>
 
-          <!-- Active streams pill -->
-          <div class="flex items-center bg-slate-900/60 backdrop-blur-md border border-white/20 rounded-xl px-3 py-2 gap-2 flex-shrink-0 shadow-sm">
-            <div class="relative flex h-2.5 w-2.5">
-              <span v-if="stats.streams > 0" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-              <span class="relative inline-flex rounded-full h-2.5 w-2.5" :class="stats.streams > 0 ? 'bg-green-500' : 'bg-slate-600'"></span>
+            <!-- RAM % -->
+            <div v-if="HEADER_WIDGETS.ram && sysStats.memPercent != null"
+                 class="group/tip relative hidden sm:flex items-center gap-2 bg-slate-900/60 backdrop-blur-md border border-white/15 rounded-lg px-3 py-1.5 shadow-sm">
+              <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 6h14a1 1 0 011 1v10a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1zM9 9v6m6-6v6"/></svg>
+              <span class="text-sm font-bold text-slate-100 font-mono">{{ sysStats.memPercent }}%</span>
+              <span class="absolute top-full mt-2 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap bg-slate-900 text-slate-100 border border-white/20 shadow-xl opacity-0 group-hover/tip:opacity-100 transition-opacity pointer-events-none z-[100]">RAM Usage</span>
             </div>
-            <span class="text-sm font-bold text-slate-100">{{ stats.streams }}</span>
-            <span class="text-xs text-slate-400 hidden sm:inline font-medium">Active</span>
+
+            <!-- Upload bandwidth -->
+            <div v-if="HEADER_WIDGETS.bandwidth"
+                 class="group/tip relative hidden sm:flex items-center gap-2 bg-slate-900/60 backdrop-blur-md border border-white/15 rounded-lg px-3 py-1.5 shadow-sm">
+              <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12"/></svg>
+              <span class="text-sm font-bold text-slate-100 font-mono">{{ stats.bandwidthMbps }}</span>
+              <span class="text-xs text-slate-500 font-medium">Mbps</span>
+              <span class="absolute top-full mt-2 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap bg-slate-900 text-slate-100 border border-white/20 shadow-xl opacity-0 group-hover/tip:opacity-100 transition-opacity pointer-events-none z-[100]">Upload Bandwidth</span>
+            </div>
+
+            <!-- Active streams (always visible, even on mobile) -->
+            <div v-if="HEADER_WIDGETS.activeStreams"
+                 class="group/tip relative flex items-center bg-slate-900/60 backdrop-blur-md border border-white/15 rounded-lg px-3 py-1.5 gap-2 shadow-sm">
+              <div class="relative flex h-2.5 w-2.5">
+                <span v-if="stats.streams > 0" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2.5 w-2.5" :class="stats.streams > 0 ? 'bg-green-500' : 'bg-slate-600'"></span>
+              </div>
+              <span class="text-sm font-bold text-slate-100 font-mono">{{ stats.streams }}</span>
+              <span class="text-xs text-slate-500 hidden sm:inline font-medium">Active</span>
+              <span class="absolute top-full mt-2 right-0 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap bg-slate-900 text-slate-100 border border-white/20 shadow-xl opacity-0 group-hover/tip:opacity-100 transition-opacity pointer-events-none z-[100]">Active Streams</span>
+            </div>
           </div>
         </div>
       </header>
 
-      <!-- App Cells: icon-prominent actions (4-col desktop, 2-col mobile) -->
-      <div class="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-6 pb-6 border-b border-white/5">
-        <a href="https://app.plex.tv/desktop" class="group relative flex flex-col items-center gap-1.5 bg-slate-950/60 backdrop-blur-xl border border-white/10 rounded-2xl p-3 sm:p-4 hover:bg-slate-900/80 hover:-translate-y-0.5 hover:shadow-[0_20px_50px_-10px_rgba(0,0,0,0.6),0_0_30px_rgba(251,146,60,0.2)] hover:border-orange-500/40 transition-all duration-300">
-          <span class="absolute top-2 right-2 text-[10px] px-1.5 py-0.5 rounded font-bold tracking-wider uppercase" :class="statsError || stats.plexOnline !== true ? 'text-rose-400' : 'text-emerald-400'">
-            {{ statsError ? 'DOWN' : stats.plexOnline === true ? 'OK' : 'DOWN' }}
-          </span>
-          <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/plex.png" alt="Plex" class="w-20 h-20 drop-shadow-md group-hover:scale-110 transition-transform duration-300">
-          <span class="text-xs font-bold text-white">AK's Plex</span>
-        </a>
-
-        <a href="https://akplex.tv/request" target="_blank" class="group relative flex flex-col items-center gap-1.5 bg-slate-950/60 backdrop-blur-xl border border-blue-500/30 rounded-2xl p-3 sm:p-4 hover:bg-slate-900/80 hover:-translate-y-0.5 shadow-[0_0_20px_rgba(59,130,246,0.1)] hover:shadow-[0_0_30px_rgba(59,130,246,0.25)] transition-all duration-300">
-          <img :src="blockbusterImg" alt="Request" class="w-20 h-20 object-cover rounded-xl shadow-sm group-hover:scale-110 transition-transform duration-300">
-          <span class="text-xs font-bold text-white">Request</span>
-        </a>
-
-        <a href="https://akplex.tv/issues" class="group flex flex-col items-center gap-1.5 bg-slate-950/60 backdrop-blur-xl border border-white/10 rounded-2xl p-3 sm:p-4 hover:bg-slate-900/80 hover:-translate-y-0.5 hover:shadow-[0_20px_50px_-10px_rgba(0,0,0,0.6),0_0_30px_rgba(239,68,68,0.2)] hover:border-red-500/40 transition-all duration-300">
-          <img :src="reportBugsImg" alt="Report Bugs" class="w-20 h-20 object-cover rounded-xl group-hover:scale-110 transition-transform duration-300">
-          <span class="text-xs font-bold text-white">Report Bugs</span>
-        </a>
-
-        <button @click="msgOpen = true" class="group flex flex-col items-center gap-1.5 bg-slate-950/60 backdrop-blur-xl border border-white/10 rounded-2xl p-3 sm:p-4 hover:bg-slate-900/80 hover:-translate-y-0.5 hover:shadow-[0_20px_50px_-10px_rgba(0,0,0,0.6),0_0_30px_rgba(168,85,247,0.2)] hover:border-purple-500/40 transition-all duration-300 cursor-pointer">
-          <svg class="w-20 h-20 text-purple-400 group-hover:scale-110 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-          <span class="text-xs font-bold text-white">Feedback</span>
+      <!-- App Cells: 2-col on phone, 3-col from sm+ (always 2 rows total). -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-6 pb-6 border-b border-white/5">
+        <!-- Quick Request: opens modal w/ Seerr search + free-text fallback -->
+        <button @click="quickOpen = true" class="group flex flex-col items-center gap-2 bg-slate-950/60 backdrop-blur-xl border border-fuchsia-500/30 rounded-2xl p-4 sm:p-5 hover:bg-slate-900/80 hover:-translate-y-0.5 active:scale-95 shadow-[0_0_20px_rgba(217,70,239,0.12)] hover:shadow-[0_0_30px_rgba(217,70,239,0.3)] hover:border-fuchsia-500/50 transition-all duration-200 cursor-pointer">
+          <div class="p-3.5 rounded-xl bg-fuchsia-500/10 group-hover:bg-fuchsia-500/20 transition-colors">
+            <svg class="w-14 h-14 text-fuchsia-400 group-hover:drop-shadow-[0_0_8px_rgba(217,70,239,0.5)] transition" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>
+            </svg>
+          </div>
+          <span class="text-sm font-bold text-white">Quick Request</span>
         </button>
 
-        <a href="https://akplex.tv/recently-added" class="group flex flex-col items-center gap-1.5 bg-slate-950/60 backdrop-blur-xl border border-white/10 rounded-2xl p-3 sm:p-4 hover:bg-slate-900/80 hover:-translate-y-0.5 hover:shadow-[0_20px_50px_-10px_rgba(0,0,0,0.6),0_0_30px_rgba(168,85,247,0.2)] hover:border-purple-500/40 transition-all duration-300">
-          <svg class="w-20 h-20 text-emerald-400 group-hover:scale-110 transition-transform duration-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m16 6 4 14"/><path d="M12 6v14"/><path d="M8 8v12"/><path d="M4 4v16"/></svg>
-          <span class="text-xs font-bold text-white">New Uploads</span>
+        <a href="https://app.plex.tv/desktop" class="group relative flex flex-col items-center gap-2 bg-slate-950/60 backdrop-blur-xl border border-white/10 rounded-2xl p-4 sm:p-5 hover:bg-slate-900/80 hover:-translate-y-0.5 active:scale-95 hover:shadow-[0_20px_50px_-10px_rgba(0,0,0,0.6),0_0_30px_rgba(251,146,60,0.2)] hover:border-orange-500/40 transition-all duration-200">
+          <!-- Pulse-dot health indicator (replaces former OK/DOWN text badge) -->
+          <span class="absolute top-3 right-3 flex h-2.5 w-2.5" :title="statsError || stats.plexOnline !== true ? 'Plex offline' : 'Plex online'">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" :class="statsError || stats.plexOnline !== true ? 'bg-rose-400' : 'bg-emerald-400'"></span>
+            <span class="relative inline-flex rounded-full h-2.5 w-2.5 shadow-[0_0_6px_currentColor]" :class="statsError || stats.plexOnline !== true ? 'bg-rose-500 text-rose-500' : 'bg-emerald-500 text-emerald-500'"></span>
+          </span>
+          <div class="p-3.5 rounded-xl bg-orange-500/10 group-hover:bg-orange-500/20 transition-colors">
+            <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/plex.png" alt="Plex" class="w-14 h-14 drop-shadow-md">
+          </div>
+          <span class="text-sm font-bold text-white">AK's Plex</span>
         </a>
+
+        <a href="https://akplex.tv/recently-added" class="group flex flex-col items-center gap-2 bg-slate-950/60 backdrop-blur-xl border border-white/10 rounded-2xl p-4 sm:p-5 hover:bg-slate-900/80 hover:-translate-y-0.5 active:scale-95 hover:shadow-[0_20px_50px_-10px_rgba(0,0,0,0.6),0_0_30px_rgba(52,211,153,0.2)] hover:border-emerald-500/40 transition-all duration-200">
+          <div class="p-3.5 rounded-xl bg-emerald-500/10 group-hover:bg-emerald-500/20 transition-colors">
+            <svg class="w-14 h-14 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m16 6 4 14"/><path d="M12 6v14"/><path d="M8 8v12"/><path d="M4 4v16"/></svg>
+          </div>
+          <span class="text-sm font-bold text-white">New Uploads</span>
+        </a>
+
+        <a href="https://akplex.tv/request" target="_blank" class="group relative flex flex-col items-center gap-2 bg-slate-950/60 backdrop-blur-xl border border-blue-500/30 rounded-2xl p-4 sm:p-5 hover:bg-slate-900/80 hover:-translate-y-0.5 active:scale-95 shadow-[0_0_20px_rgba(59,130,246,0.1)] hover:shadow-[0_0_30px_rgba(59,130,246,0.25)] transition-all duration-200">
+          <div class="p-3.5 rounded-xl bg-blue-500/10 group-hover:bg-blue-500/20 transition-colors">
+            <img :src="blockbusterImg" alt="Request" class="w-14 h-14 object-cover rounded-lg shadow-sm">
+          </div>
+          <span class="text-sm font-bold text-white">Request</span>
+        </a>
+
+        <a href="https://akplex.tv/issues" class="group flex flex-col items-center gap-2 bg-slate-950/60 backdrop-blur-xl border border-white/10 rounded-2xl p-4 sm:p-5 hover:bg-slate-900/80 hover:-translate-y-0.5 active:scale-95 hover:shadow-[0_20px_50px_-10px_rgba(0,0,0,0.6),0_0_30px_rgba(239,68,68,0.2)] hover:border-red-500/40 transition-all duration-200">
+          <div class="p-3.5 rounded-xl bg-red-500/10 group-hover:bg-red-500/20 transition-colors">
+            <img :src="reportBugsImg" alt="Report Bugs" class="w-14 h-14 object-cover rounded-lg">
+          </div>
+          <span class="text-sm font-bold text-white">Report Bugs</span>
+        </a>
+
+        <button @click="msgOpen = true" class="group flex flex-col items-center gap-2 bg-slate-950/60 backdrop-blur-xl border border-white/10 rounded-2xl p-4 sm:p-5 hover:bg-slate-900/80 hover:-translate-y-0.5 active:scale-95 hover:shadow-[0_20px_50px_-10px_rgba(0,0,0,0.6),0_0_30px_rgba(168,85,247,0.2)] hover:border-purple-500/40 transition-all duration-200 cursor-pointer">
+          <div class="p-3.5 rounded-xl bg-purple-500/10 group-hover:bg-purple-500/20 transition-colors">
+            <svg class="w-14 h-14 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+          </div>
+          <span class="text-sm font-bold text-white">Feedback</span>
+        </button>
+
       </div>
 
       <!-- Status bars (commented out — health moved into Plex cell) -->
@@ -605,6 +761,66 @@ const bookmarks = [
         </button>
       </div>
       -->
+
+      <!-- Quick Request modal: Seerr search + free-text fallback -->
+      <Teleport to="body">
+        <transition name="fade">
+          <div v-if="quickOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" @click.self="closeQuickModal">
+            <div class="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
+            <div class="relative w-full max-w-2xl bg-slate-900/95 backdrop-blur-xl border border-fuchsia-500/30 rounded-2xl p-6 sm:p-7 space-y-5 shadow-2xl shadow-fuchsia-500/10 max-h-[90vh] flex flex-col">
+              <div class="flex items-center justify-between flex-shrink-0">
+                <h3 class="text-xl font-bold text-white flex items-center gap-2.5">
+                  <svg class="w-6 h-6 text-fuchsia-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                  Quick Request
+                </h3>
+                <button @click="closeQuickModal" class="text-slate-400 hover:text-white transition">
+                  <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+              </div>
+
+              <p class="text-sm text-slate-300 flex-shrink-0">Search for a movie or show, then click a result to request it.</p>
+
+              <!-- Search input -->
+              <div class="relative flex-shrink-0">
+                <svg class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                <input v-model="quickQuery" @input="onQuickSearchInput" type="text" placeholder="Inception, Planet Earth..." autofocus class="w-full bg-slate-800/80 border border-white/10 rounded-xl px-4 pl-11 py-3 text-base text-white placeholder-slate-500 focus:outline-none focus:border-fuchsia-500/50 focus:ring-1 focus:ring-fuchsia-500/30">
+              </div>
+
+              <!-- Results -->
+              <div class="flex-1 overflow-y-auto thin-scrollbar -mx-1 px-1 min-h-[120px]">
+                <div v-if="quickLoading" class="text-sm text-slate-400 text-center py-6">Searching...</div>
+                <div v-else-if="quickQuery.trim().length >= 2 && quickResults.length === 0" class="text-sm text-slate-500 text-center py-6">No results.</div>
+                <div v-else-if="quickResults.length > 0" class="space-y-2">
+                  <button v-for="r in quickResults" :key="`${r.mediaType}-${r.tmdbId}`" @click="pickQuickResult(r)" :disabled="quickSending" class="w-full flex items-center gap-4 bg-slate-800/60 hover:bg-fuchsia-600/20 border border-white/5 hover:border-fuchsia-500/40 rounded-xl p-3 text-left transition disabled:opacity-50 disabled:cursor-not-allowed">
+                    <img v-if="r.posterUrl" :src="r.posterUrl" class="w-12 h-16 object-cover rounded flex-shrink-0" />
+                    <div v-else class="w-12 h-16 bg-slate-700 rounded flex-shrink-0 flex items-center justify-center">
+                      <svg class="w-6 h-6 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4"/></svg>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                      <div class="text-base text-white truncate font-medium">{{ r.title }}</div>
+                      <div class="text-sm text-slate-400">{{ r.year || '—' }} · {{ r.mediaType === 'movie' ? 'Movie' : 'Series' }}</div>
+                    </div>
+                    <svg class="w-5 h-5 text-fuchsia-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                  </button>
+                </div>
+                <div v-else class="text-sm text-slate-500 text-center py-6">Start typing a title above to see results.</div>
+              </div>
+
+              <!-- Fallback free-text (always visible, prominent) -->
+              <div class="bg-slate-800/40 border border-white/10 rounded-xl p-4 space-y-3 flex-shrink-0">
+                <label class="block text-sm font-bold text-slate-200">Can't find it? Send a text request</label>
+                <input v-model="quickFallbackText" type="text" placeholder="e.g. that documentary about octopuses" @keyup.enter="sendQuickFallback" class="w-full bg-slate-900/80 border border-white/10 rounded-lg px-4 py-3 text-base text-white placeholder-slate-500 focus:outline-none focus:border-fuchsia-500/50 focus:ring-1 focus:ring-fuchsia-500/30">
+                <button @click="sendQuickFallback" :disabled="quickSending || !quickFallbackText.trim()" class="w-full px-4 py-3 text-sm font-bold text-white bg-fuchsia-600 hover:bg-fuchsia-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition">
+                  {{ quickSending ? 'Sending...' : 'Send text request' }}
+                </button>
+              </div>
+
+              <div v-if="quickSent" class="text-sm text-emerald-400 text-center font-medium flex-shrink-0">Sent! Thank you.</div>
+              <div v-else-if="quickError" class="text-sm text-rose-400 text-center font-medium flex-shrink-0">{{ quickError }}</div>
+            </div>
+          </div>
+        </transition>
+      </Teleport>
 
       <Teleport to="body">
         <transition name="fade">
@@ -671,12 +887,23 @@ const bookmarks = [
             <svg class="w-6 h-6 text-white drop-shadow-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
           </button>
           <div ref="calendarScroll" @scroll="checkCalendarScroll" class="flex gap-2 overflow-x-auto pb-2 -mx-6 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
+          <!-- Responsive widths: 2 / 3 / 4 / 5 cards visible per breakpoint.
+               At lg+ exactly 5 of the 7 days fit, so days 6-7 sit behind the
+               right-edge scroll chevron (calendarCanScrollRight). -->
           <div v-for="day in calendarDays" :key="day.date"
-               class="flex-shrink-0 w-[calc(50%-4px)] sm:w-auto sm:flex-1 sm:min-w-[150px] bg-slate-950/60 backdrop-blur-xl border border-white/15 rounded-xl hover:border-white/25 transition-colors duration-300 group">
+               :class="[
+                 'flex-shrink-0 w-[calc(50%-4px)] sm:w-[calc(33.333%-6px)] md:w-[calc(25%-6px)] lg:w-[calc(20%-7px)] bg-slate-950/60 backdrop-blur-xl rounded-xl transition-colors duration-300 group border',
+                 day.isToday
+                   ? 'border-fuchsia-500/50 ring-1 ring-fuchsia-500/20 shadow-[0_0_18px_rgba(217,70,239,0.18)]'
+                   : 'border-white/15 hover:border-white/25'
+               ]">
 
-            <div class="px-3 py-1.5 border-b border-white/5 bg-white/[0.03] flex items-center justify-between">
-              <span class="text-xs sm:text-sm font-bold text-slate-200">{{ day.dayName }}</span>
-              <span class="text-xs font-mono text-slate-400">{{ day.dateLabel }}</span>
+            <div :class="[
+                   'px-3 py-1.5 border-b flex items-center justify-between',
+                   day.isToday ? 'border-fuchsia-500/30 bg-fuchsia-500/10' : 'border-white/5 bg-white/[0.03]'
+                 ]">
+              <span :class="['text-xs sm:text-sm font-bold', day.isToday ? 'text-fuchsia-200' : 'text-slate-200']">{{ day.dayName }}</span>
+              <span :class="['text-xs font-mono', day.isToday ? 'text-fuchsia-300' : 'text-slate-400']">{{ day.dateLabel }}</span>
             </div>
 
             <div class="p-2 space-y-1 transition-all duration-300 custom-scrollbar" :class="{ 'max-h-[250px] overflow-y-auto': calendarExpanded }">
@@ -689,7 +916,10 @@ const bookmarks = [
                   </div>
                   <div class="min-w-0 flex-1">
                     <span class="text-xs sm:text-sm font-bold text-white truncate block leading-tight">{{ ep.seriesTitle }}</span>
-                    <span class="text-xs text-slate-400">S{{ ep.seasonNumber }}E{{ ep.episodeNumber }} <span class="text-fuchsia-400 font-bold">{{ ep.airTime }}</span></span>
+                    <span class="text-xs text-slate-400 inline-flex items-center gap-1.5">
+                      S{{ ep.seasonNumber }}E{{ ep.episodeNumber }}
+                      <span class="px-1.5 py-[1px] rounded-md bg-fuchsia-500/15 border border-fuchsia-500/30 text-fuchsia-300 text-[10px] font-bold leading-none">{{ ep.airTime }}</span>
+                    </span>
                   </div>
                 </div>
               </template>

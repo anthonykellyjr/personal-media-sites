@@ -10,7 +10,15 @@
 }
 
 body {
-  background-image: linear-gradient(to top, #0250c5 0%, #5B21B6 100%);
+  background-color: #0f172a; /* Tailwind's slate-900 */
+  /* OR a very dark subtle gradient: */
+  /* background-image: linear-gradient(to bottom, #1e1b4b 0%, #0f172a 100%); */
   min-height: 100vh;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
+
+/* body {
+  background-image: linear-gradient(to top, #0250c5 0%, #5B21B6 100%);
+  min-height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+} */

@@ -838,8 +838,6 @@
         // CONFIGURATION
         // ============================================================
         const CONFIG = {
-            apiKey: 'MTc2MjQ4MzExMzkzMzA5ZGQwNWRiLTUwOWUtNDc1Ny05NmQ2LTRlMGE5MTU1ZTA3OQ==',
-            overseerrUrl: '/api/overseerr',
             tmdbImageUrl: 'https://image.tmdb.org/t/p/w200'
         };
         
@@ -956,12 +954,10 @@
             logger.info('Search initiated', { query });
             
             try {
-                const response = await fetch(`${CONFIG.overseerrUrl}/v1/search?query=${encodeURIComponent(query)}&language=en`, {
-                    headers: { 'X-Api-Key': CONFIG.apiKey }
-                });
-                
+                const response = await fetch(`/api/seerr-search?q=${encodeURIComponent(query)}`);
+
                 logger.debug('Search response received', { status: response.status, ok: response.ok });
-                
+
                 if (!response.ok) {
                     let errorDetail = `HTTP ${response.status}`;
                     try {
@@ -973,19 +969,13 @@
                     }
                     throw new Error(errorDetail);
                 }
-                
+
                 const data = await response.json();
                 logger.success('Search completed', { resultCount: data.results?.length || 0 });
-                
+
                 if (data.results && data.results.length > 0) {
-                    // Sort: English content first, then by popularity descending
-                    const sorted = data.results.sort((a, b) => {
-                        const aEn = (a.originalLanguage || '') === 'en' ? 1 : 0;
-                        const bEn = (b.originalLanguage || '') === 'en' ? 1 : 0;
-                        if (aEn !== bEn) return bEn - aEn;
-                        return (b.popularity || 0) - (a.popularity || 0);
-                    });
-                    displayResults(sorted);
+                    // Results already sorted server-side (English first, then popularity desc).
+                    displayResults(data.results);
                 } else {
                     resultsDiv.innerHTML = '<div class="message info"><i class="fas fa-info-circle"></i>No results found. Try the direct request below!</div>';
                 }
@@ -1006,14 +996,11 @@
                 item.className = 'result-item';
                 item.onclick = () => requestMedia(media);
                 
-                const posterPath = media.posterPath || media.poster_path;
-                const posterUrl = posterPath 
-                    ? `${CONFIG.tmdbImageUrl}${posterPath}` 
-                    : 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iOTAiIHZpZXdCb3g9IjAgMCA2MCA5MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjYwIiBoZWlnaHQ9IjkwIiByeD0iOCIgZmlsbD0iIzFGMjkzNyIvPgo8cGF0aCBkPSJNMjUgMzVMMzUgNDVMMjUgNTUiIHN0cm9rZT0iIzQ3NTU2OSIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KPC9zdmc+';
-                
-                const title = media.title || media.name;
-                const year = media.releaseDate || media.release_date || media.firstAirDate || media.first_air_date;
-                const yearDisplay = year ? new Date(year).getFullYear() : '';
+                const posterUrl = media.posterUrl
+                    || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iOTAiIHZpZXdCb3g9IjAgMCA2MCA5MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjYwIiBoZWlnaHQ9IjkwIiByeD0iOCIgZmlsbD0iIzFGMjkzNyIvPgo8cGF0aCBkPSJNMjUgMzVMMzUgNDVMMjUgNTUiIHN0cm9rZT0iIzQ3NTU2OSIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KPC9zdmc+';
+
+                const title = media.title;
+                const yearDisplay = media.year || '';
                 const mediaType = media.mediaType === 'tv' ? 'TV' : 'Movie';
                 const mediaIcon = media.mediaType === 'tv' ? 'fa-tv' : 'fa-film';
                 
@@ -1043,24 +1030,22 @@
         
         async function requestMedia(media) {
             const resultsDiv = document.getElementById('results');
-            const title = media.title || media.name;
+            const title = media.title;
             resultsDiv.innerHTML = `<div class="loading"><div class="spinner"></div>Requesting ${escapeHtml(title)}...</div>`;
-            
+
             const requestBody = {
+                tmdbId: media.tmdbId,
                 mediaType: media.mediaType,
-                mediaId: media.id,
-                userId: 2
+                title: title,
+                year: media.year || null
             };
-            
-            logger.info('Submitting request', { title, mediaType: media.mediaType, mediaId: media.id });
-            
+
+            logger.info('Submitting request', { title, mediaType: media.mediaType, tmdbId: media.tmdbId });
+
             try {
-                const response = await fetch(`${CONFIG.overseerrUrl}/v1/request`, {
+                const response = await fetch('/api/quick-request', {
                     method: 'POST',
-                    headers: {
-                        'X-Api-Key': CONFIG.apiKey,
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(requestBody)
                 });
                 

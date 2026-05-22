@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>WebHead Media - Requests Admin</title>
-  <link rel="icon" type="image/png" href="/status/images/favicon.png">
+  <link rel="icon" type="image/png" href="/home/images/favicon.png">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     :root {
@@ -86,12 +86,34 @@
     .status.ok { color: #4ade80; }
     .status.err { color: #f87171; }
     .status.info { color: var(--muted); }
+    /* Toast notifications (top-right, auto-dismiss). Slide+fade in, then out. */
+    .toast-container {
+      position: fixed; top: 20px; right: 20px; z-index: 1000;
+      display: flex; flex-direction: column; gap: 10px;
+      max-width: 380px; pointer-events: none;
+    }
+    .toast {
+      padding: 12px 16px; border-radius: 10px;
+      background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(16px);
+      border: 1px solid; color: var(--text);
+      font-size: 0.9rem; font-weight: 500; line-height: 1.4;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+      transform: translateX(120%); opacity: 0;
+      transition: transform 0.3s ease, opacity 0.3s ease;
+      pointer-events: auto;
+    }
+    .toast.show { transform: translateX(0); opacity: 1; }
+    .toast.ok   { border-color: #4ade80; }
+    .toast.err  { border-color: #f87171; }
+    .toast.info { border-color: rgba(255,255,255,0.25); }
     .links { text-align: center; margin-top: 8px; }
     .links a { color: var(--muted); font-size: 0.85rem; text-decoration: none; }
     .links a:hover { color: var(--text); }
   </style>
 </head>
 <body>
+  <div class="toast-container" id="toastContainer" aria-live="polite" aria-atomic="false"></div>
+
   <div class="wrap">
     <h1><span>Anonymous Requests</span></h1>
     <p class="sub">Match text requests to TMDB so they appear on <a href="/recently-added/" style="color:#c084fc;">akplex.tv/recently-added/</a> once available.</p>
@@ -138,7 +160,7 @@
       <div id="matchedList"><div class="empty">Nothing loaded yet.</div></div>
     </div>
 
-    <div class="links"><a href="/announce/">→ Announcements admin</a> &nbsp;·&nbsp; <a href="/status/">← Status Hub</a></div>
+    <div class="links"><a href="/announce/">→ Announcements admin</a> &nbsp;·&nbsp; <a href="/home/">← Home</a></div>
   </div>
 
   <script>
@@ -195,6 +217,21 @@
 
     function escapeHtml(s) {
       return (s || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+    }
+
+    // Toast: ephemeral feedback. kind = 'ok' | 'err' | 'info'. Multiple toasts
+    // stack vertically; each fades+slides out after `durationMs`.
+    function toast(message, kind = 'info', durationMs = 4000) {
+      const container = document.getElementById('toastContainer');
+      const el = document.createElement('div');
+      el.className = 'toast ' + kind;
+      el.textContent = message;
+      container.appendChild(el);
+      requestAnimationFrame(() => el.classList.add('show'));
+      setTimeout(() => {
+        el.classList.remove('show');
+        setTimeout(() => el.remove(), 350);
+      }, durationMs);
     }
 
     // ── Authenticated fetch helper ──────────────────────────────────────────
@@ -296,15 +333,21 @@
 
     el.seedBtn.addEventListener('click', async () => {
       const texts = el.seedBox.value.split('\n').map(s => s.trim()).filter(Boolean);
-      if (!texts.length) { el.seedStatus.textContent = 'Enter at least one title.'; el.seedStatus.className = 'status err'; return; }
+      if (!texts.length) {
+        el.seedStatus.textContent = 'Enter at least one title.'; el.seedStatus.className = 'status err';
+        toast('Enter at least one title.', 'err');
+        return;
+      }
       el.seedStatus.textContent = 'Adding…'; el.seedStatus.className = 'status info';
       try {
         const res = await apiFetch('/api/text-requests', { method: 'POST', body: JSON.stringify({ texts }) });
         el.seedBox.value = '';
         el.seedStatus.textContent = `Added ${res.added.length}.`; el.seedStatus.className = 'status ok';
+        toast(`Added ${res.added.length} request${res.added.length === 1 ? '' : 's'} to Unmatched.`, 'ok');
         loadAll();
       } catch (err) {
         el.seedStatus.textContent = 'Add failed: ' + err.message; el.seedStatus.className = 'status err';
+        toast('Add failed: ' + err.message, 'err');
       }
     });
 
@@ -336,13 +379,18 @@
           `).join('');
         } catch (err) {
           resultsEl.innerHTML = `<div class="empty" style="color:#f87171;">Search failed: ${escapeHtml(err.message)}</div>`;
+          toast('Search failed: ' + err.message, 'err');
         }
       } else if (e.target.classList.contains('delete-btn')) {
         if (!confirm('Delete this request?')) return;
         try {
           await apiFetch(`/api/text-requests/${id}`, { method: 'DELETE' });
+          toast('Request deleted.', 'ok');
           loadAll();
-        } catch (err) { setStatus('Delete failed: ' + err.message, 'err'); }
+        } catch (err) {
+          setStatus('Delete failed: ' + err.message, 'err');
+          toast('Delete failed: ' + err.message, 'err');
+        }
       } else {
         const result = e.target.closest('.result');
         if (!result) return;
@@ -357,8 +405,12 @@
           const res = await apiFetch(`/api/text-requests/${id}/match`, { method: 'POST', body: JSON.stringify(body) });
           appendMatched(res.request, posterImg?.src || null);
           setStatus(`Matched to "${body.title}".`, 'ok');
+          toast(`Matched to "${body.title}"${body.year ? ' (' + body.year + ')' : ''}.`, 'ok');
           loadAll();  // refresh unmatched list (the matched item drops off it)
-        } catch (err) { setStatus('Match failed: ' + err.message, 'err'); }
+        } catch (err) {
+          setStatus('Match failed: ' + err.message, 'err');
+          toast('Match failed: ' + err.message, 'err');
+        }
       }
     });
 
@@ -371,15 +423,23 @@
           await apiFetch(`/api/text-requests/${id}/match`, { method: 'DELETE' });
           row.remove();
           updateMatchedCount();
+          toast('Unmatched — request is back in Unmatched.', 'ok');
           loadAll();
-        } catch (err) { setStatus('Unmatch failed: ' + err.message, 'err'); }
+        } catch (err) {
+          setStatus('Unmatch failed: ' + err.message, 'err');
+          toast('Unmatch failed: ' + err.message, 'err');
+        }
       } else if (e.target.classList.contains('delete-btn')) {
         if (!confirm('Delete this request entirely?')) return;
         try {
           await apiFetch(`/api/text-requests/${id}`, { method: 'DELETE' });
           row.remove();
           updateMatchedCount();
-        } catch (err) { setStatus('Delete failed: ' + err.message, 'err'); }
+          toast('Request deleted.', 'ok');
+        } catch (err) {
+          setStatus('Delete failed: ' + err.message, 'err');
+          toast('Delete failed: ' + err.message, 'err');
+        }
       }
     });
 

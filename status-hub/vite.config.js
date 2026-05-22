@@ -3,11 +3,11 @@ import vue from '@vitejs/plugin-vue'
 
 export default defineConfig({
   plugins: [vue()],
-  base: '/status/',
+  base: '/home/',
   server: {
     host: '0.0.0.0',
     port: 5173,
-    open: '/status/',
+    open: '/home/',
     proxy: {
       '/api': {
         target: 'http://host.docker.internal:5050',

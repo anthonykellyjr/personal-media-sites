@@ -1,6 +1,7 @@
-# Status Hub
+# Home (status-hub source)
 
-Public-facing status page for WebHead Media, accessible at `akplex.tv/status/`.
+Public-facing landing page for WebHead Media, accessible at `akplex.tv/home/`.
+(Source directory is named `status-hub/` for historical reasons — the URL and display name are "Home".)
 
 ## Tech Stack
 
@@ -54,7 +55,7 @@ npm install
 npm run dev
 ```
 
-Opens at `http://localhost:5173/status/` with live reload on file changes.
+Opens at `http://localhost:5173/home/` with live reload on file changes.
 
 **Note:** The dev server proxies `/api` requests to `localhost:5000`. If the announcement-api container runs on a different port, update `vite.config.js`.
 
@@ -76,7 +77,7 @@ Output goes to `dist/` which is volume-mounted by the web-router container.
 
 **IMPORTANT: Node/npm is NOT installed on the tower system.**
 
-The `dist/` folder is mounted directly into the web-router container at `/usr/share/nginx/html/status/`. No manual copying is required.
+The `dist/` folder is mounted directly into the web-router container at `/usr/share/nginx/html/home/`. No manual copying is required.
 
 ### Deploy Changes
 
@@ -185,7 +186,7 @@ Defined in `~/DockerApps/web-routing/docker-compose.yml`:
 
 ```yaml
 volumes:
-  - /home/anthony/DockerApps/websites/status-hub/dist:/usr/share/nginx/html/status:ro
+  - /home/anthony/DockerApps/websites/status-hub/dist:/usr/share/nginx/html/home:ro
 ```
 
 The `:ro` flag makes it read-only inside the container.

@@ -32,6 +32,7 @@ CORS(app)
 
 ANNOUNCEMENTS_FILE = '/app/announcements.json'
 TEXT_REQUESTS_FILE = '/app/text_requests.json'
+HIDDEN_FULFILLED_FILE = '/app/hidden_fulfilled.json'
 ADMIN_KEY = os.environ['ADMIN_KEY']
 TAUTULLI_URL = os.environ.get('TAUTULLI_URL', 'http://10.0.0.222:8182')
 TAUTULLI_API_KEY = os.environ['TAUTULLI_API_KEY']
@@ -178,25 +179,39 @@ def anon_request():
     _save_text_requests(items)
 
     print(f"Anonymous request received: {title}")
-    _send_ntfy('requests', 'Content Request', f"Someone requested: {title}", 'movie_camera')
+    admin_url = 'https://akplex.tv/requests-admin/'
+    _send_ntfy('requests', 'Content Request', f"Someone requested: {title}\n\nMatch it: {admin_url}", 'movie_camera')
     _send_email(
         f"Content Request: {title}",
-        f"Someone requested: {title}\n\nTime: {ts}",
-        f"<h2>Content Request</h2><p><strong>Title:</strong> {title}</p>"
+        f"Someone requested: {title}\n\nTime: {ts}\n\nMatch it to TMDB: {admin_url}",
+        f"<h2>Content Request</h2>"
+        f"<p><strong>Title:</strong> {title}</p>"
         f"<p><strong>Time:</strong> {ts}</p>"
+        f"<p><a href=\"{admin_url}\" style=\"display:inline-block;padding:10px 18px;background:#9333ea;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;\">Match to TMDB &rarr;</a></p>"
     )
     return jsonify({"success": True, "message": "Request received"})
 
 # --- Text-request admin endpoints (used by /requests-admin/) ---
+#
+# Text-requests are anonymous content requests (free-form strings) that need
+# to be matched to a TMDB id before they can flow into Seerr / the recently-
+# fulfilled feed. Lifecycle:
+#   anon_request() (POST /api/anon-request)  -> creates an UNMATCHED entry
+#   match_text_request()                     -> attaches a tmdbId + mediaType
+#   _fetch_recently_fulfilled() consumer     -> merges matched items into the
+#                                                public Status Hub feed once
+#                                                Seerr reports them available
+# All admin endpoints below require the X-Admin-Key header.
 
 def _require_admin():
+    """Return a 401 response if the X-Admin-Key header is missing/wrong, else None."""
     if request.headers.get('X-Admin-Key', '') != ADMIN_KEY:
         return jsonify({"error": "Unauthorized"}), 401
     return None
 
 @app.route('/api/text-requests', methods=['GET'])
 def list_text_requests():
-    """List all persisted anonymous text requests."""
+    """List all persisted anonymous text requests (matched + unmatched), newest first."""
     err = _require_admin()
     if err: return err
     items = _load_text_requests()
@@ -205,7 +220,10 @@ def list_text_requests():
 
 @app.route('/api/text-requests', methods=['POST'])
 def add_text_requests():
-    """Manually seed one or more text requests (admin backfill)."""
+    """Manually seed one or more text requests (admin backfill).
+    Body: {"text": "single string"} or {"texts": ["a", "b", ...]}.
+    Seeded entries start UNMATCHED so they show up in the admin UI's Unmatched box.
+    """
     err = _require_admin()
     if err: return err
     body = request.get_json() or {}
@@ -229,7 +247,10 @@ def add_text_requests():
 
 @app.route('/api/text-requests/<int:req_id>/match', methods=['POST'])
 def match_text_request(req_id):
-    """Attach a TMDB id + media type to a text request."""
+    """Attach a TMDB id + media type to a text request.
+    Body: {"tmdbId": int, "mediaType": "movie"|"tv", "title": str, "year": int}.
+    Invalidates the recently-fulfilled cache so the public feed updates immediately.
+    """
     err = _require_admin()
     if err: return err
     body = request.get_json() or {}
@@ -246,12 +267,15 @@ def match_text_request(req_id):
             r['matchedYear'] = body.get('year')
             r['matchedAt'] = int(time.time())
             _save_text_requests(items)
+            _cache.pop('recently_fulfilled', None)
             return jsonify({'success': True, 'request': r})
     return jsonify({"error": "Not found"}), 404
 
 @app.route('/api/text-requests/<int:req_id>/match', methods=['DELETE'])
 def unmatch_text_request(req_id):
-    """Clear the match on a text request (so it returns to the unmatched list)."""
+    """Clear the match on a text request (so it returns to the unmatched list).
+    Useful if a match was made to the wrong title and you want to redo it.
+    """
     err = _require_admin()
     if err: return err
     items = _load_text_requests()
@@ -263,12 +287,13 @@ def unmatch_text_request(req_id):
             r['matchedYear'] = None
             r['matchedAt'] = None
             _save_text_requests(items)
+            _cache.pop('recently_fulfilled', None)
             return jsonify({'success': True})
     return jsonify({"error": "Not found"}), 404
 
 @app.route('/api/text-requests/<int:req_id>', methods=['DELETE'])
 def delete_text_request(req_id):
-    """Remove a text request (spam / duplicate)."""
+    """Remove a text request entirely (spam / duplicate / fulfilled-and-archived)."""
     err = _require_admin()
     if err: return err
     items = _load_text_requests()
@@ -276,46 +301,160 @@ def delete_text_request(req_id):
     if len(new_items) == len(items):
         return jsonify({"error": "Not found"}), 404
     _save_text_requests(new_items)
+    _cache.pop('recently_fulfilled', None)
     return jsonify({'success': True})
+
+def _seerr_multi_search(query, limit=20):
+    """Hit Seerr's multi-search and normalize to a slim list.
+    Used by the admin matcher, the Quick Request modal, and the public
+    /request and /issues pages. Results are sorted English-first then by
+    popularity descending so the most-likely intended result is on top.
+    """
+    # Seerr rejects '+'-encoded spaces (requires %20). Build the URL with quote()
+    # instead of passing params={'query': ...}, which uses '+' for spaces.
+    url = f'{SEERR_URL}/api/v1/search?query={quote(query)}&page=1&language=en'
+    resp = requests.get(url, headers={'X-Api-Key': SEERR_API_KEY}, timeout=8)
+    out = []
+    for item in resp.json().get('results', []):
+        mt = item.get('mediaType')
+        if mt not in ('movie', 'tv'):
+            continue
+        date_field = item.get('releaseDate') or item.get('firstAirDate') or ''
+        year = None
+        if len(date_field) >= 4:
+            try: year = int(date_field[:4])
+            except ValueError: pass
+        poster = item.get('posterPath')
+        out.append({
+            'tmdbId': item.get('id'),
+            'mediaType': mt,
+            'title': item.get('title') or item.get('name') or 'Unknown',
+            'year': year,
+            'posterUrl': f'https://image.tmdb.org/t/p/w185{poster}' if poster else None,
+            'originalLanguage': item.get('originalLanguage') or '',
+            'popularity': item.get('popularity') or 0,
+        })
+    out.sort(key=lambda x: (0 if x['originalLanguage'] == 'en' else 1, -x['popularity']))
+    return out[:limit]
 
 @app.route('/api/text-requests/search', methods=['GET'])
 def text_request_search():
-    """Server-side proxy for Seerr multi-search (so the admin page doesn't need the Seerr key)."""
+    """Admin-only Seerr search (used by /requests-admin/ matching UI)."""
     err = _require_admin()
     if err: return err
     query = request.args.get('q', '').strip()
     if len(query) < 2:
         return jsonify({'results': []})
     try:
-        # Seerr rejects '+'-encoded spaces (requires %20). Build the URL with quote()
-        # instead of passing params={'query': ...}, which uses '+' for spaces.
-        url = f'{SEERR_URL}/api/v1/search?query={quote(query)}&page=1&language=en'
-        resp = requests.get(
-            url,
-            headers={'X-Api-Key': SEERR_API_KEY},
-            timeout=8
-        )
-        out = []
-        for item in resp.json().get('results', []):
-            mt = item.get('mediaType')
-            if mt not in ('movie', 'tv'):
-                continue
-            date_field = item.get('releaseDate') or item.get('firstAirDate') or ''
-            year = None
-            if len(date_field) >= 4:
-                try: year = int(date_field[:4])
-                except ValueError: pass
-            poster = item.get('posterPath')
-            out.append({
-                'tmdbId': item.get('id'),
-                'mediaType': mt,
-                'title': item.get('title') or item.get('name') or 'Unknown',
-                'year': year,
-                'posterUrl': f'https://image.tmdb.org/t/p/w185{poster}' if poster else None,
-            })
-        return jsonify({'results': out[:20]})
+        return jsonify({'results': _seerr_multi_search(query)})
     except Exception as e:
         return jsonify({'results': [], 'error': str(e)}), 500
+
+@app.route('/api/seerr-search', methods=['GET'])
+def seerr_search_public():
+    """Public Seerr search proxy. Same trust level as the public /request page.
+    Callers: Status Hub Quick Request modal, /request, /issues.
+    """
+    query = request.args.get('q', '').strip()
+    if len(query) < 2:
+        return jsonify({'results': []})
+    try:
+        return jsonify({'results': _seerr_multi_search(query, limit=10)})
+    except Exception as e:
+        return jsonify({'results': [], 'error': str(e)}), 500
+
+@app.route('/api/seerr-status/<media_type>/<int:tmdb_id>', methods=['GET'])
+def seerr_status_public(media_type, tmdb_id):
+    """Public availability check for a TMDB id. Used by /issues to filter
+    search results to media we actually have. Returns {status} where status
+    matches Seerr's mediaInfo.status integer (4 = partially available, 5 = available).
+    """
+    if media_type not in ('movie', 'tv'):
+        return jsonify({'error': 'media_type must be movie or tv'}), 400
+    try:
+        r = requests.get(
+            f'{SEERR_URL}/api/v1/{media_type}/{tmdb_id}',
+            headers={'X-Api-Key': SEERR_API_KEY},
+            timeout=5
+        )
+        if r.status_code != 200:
+            return jsonify({'status': None}), r.status_code
+        info = r.json().get('mediaInfo') or {}
+        return jsonify({'status': info.get('status')})
+    except Exception as e:
+        return jsonify({'status': None, 'error': str(e)}), 500
+
+@app.route('/api/quick-request', methods=['POST'])
+def quick_request():
+    """Submit a Quick Request from the Status Hub modal.
+    Body: {"tmdbId": int, "mediaType": "movie"|"tv", "title": str, "year": int?}.
+    Side effects (POST to both, per user spec):
+      1. Create a real Seerr request via POST /api/v1/request (TV defaults to all seasons).
+      2. Persist a MATCHED text_request entry so it appears in /requests-admin/.
+    Also fires the usual ntfy + email notifications and invalidates the
+    recently-fulfilled cache so the public feed updates promptly.
+    """
+    data = request.get_json() or {}
+    tmdb_id = data.get('tmdbId')
+    media_type = data.get('mediaType')
+    title = data.get('title') or 'Unknown'
+    year = data.get('year')
+    if not tmdb_id or media_type not in ('movie', 'tv'):
+        return jsonify({"error": "tmdbId and mediaType (movie|tv) required"}), 400
+
+    # 1. Submit to Seerr. We don't fail the whole request if Seerr is down —
+    #    the admin can still see the matched entry and retry manually.
+    seerr_ok = False
+    seerr_err = None
+    try:
+        body = {'mediaType': media_type, 'mediaId': int(tmdb_id)}
+        if media_type == 'tv':
+            body['seasons'] = 'all'
+        r = requests.post(
+            f'{SEERR_URL}/api/v1/request',
+            json=body,
+            headers={'X-Api-Key': SEERR_API_KEY},
+            timeout=10
+        )
+        # 201 = created, 409 = already requested (treat as success since the intent is met).
+        seerr_ok = r.status_code in (200, 201, 409)
+        if not seerr_ok:
+            seerr_err = f"Seerr returned {r.status_code}: {r.text[:200]}"
+    except Exception as e:
+        seerr_err = str(e)
+
+    # 2. Persist as a matched text_request so it shows up in /requests-admin/.
+    ts_now = int(time.time())
+    items = _load_text_requests()
+    new_id = (max((r.get('id', 0) for r in items), default=0)) + 1
+    items.append({
+        'id': new_id,
+        'text': title,
+        'createdAt': ts_now,
+        'tmdbId': int(tmdb_id),
+        'mediaType': media_type,
+        'matchedTitle': title,
+        'matchedYear': year,
+        'matchedAt': ts_now,
+    })
+    _save_text_requests(items)
+    _cache.pop('recently_fulfilled', None)
+
+    # 3. Notify admin (same channels as anon_request).
+    label = f"{title}" + (f" ({year})" if year else "")
+    admin_url = 'https://akplex.tv/requests-admin/'
+    _send_ntfy('requests', 'Quick Request', f"Someone requested: {label}\n\nAdmin: {admin_url}", 'movie_camera')
+    _send_email(
+        f"Quick Request: {label}",
+        f"Quick Request submitted: {label}\nTMDB id: {tmdb_id} ({media_type})\nSeerr: {'OK' if seerr_ok else 'FAILED — ' + (seerr_err or 'unknown')}\n\nAdmin: {admin_url}",
+        f"<h2>Quick Request</h2>"
+        f"<p><strong>Title:</strong> {label}</p>"
+        f"<p><strong>TMDB:</strong> {tmdb_id} ({media_type})</p>"
+        f"<p><strong>Seerr:</strong> {'OK' if seerr_ok else 'FAILED &mdash; ' + (seerr_err or 'unknown')}</p>"
+        f"<p><a href=\"{admin_url}\" style=\"display:inline-block;padding:10px 18px;background:#9333ea;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;\">Open Admin &rarr;</a></p>"
+    )
+
+    return jsonify({'success': True, 'seerr': seerr_ok, 'seerrError': seerr_err, 'requestId': new_id})
 
 @app.route('/api/issue-report', methods=['POST'])
 def issue_report():
@@ -606,27 +745,44 @@ def trending_movies():
 # --- Recently Added Episodes (from Plex) ---
 
 def _fetch_recent_episodes():
+    # Ask Plex for a large window (500) so a recent dump of one show doesn't
+    # crowd out every other series in the response.
     response = requests.get(
         f"{PLEX_URL}/library/sections/2/recentlyAdded",
-        params={'X-Plex-Token': PLEX_TOKEN, 'X-Plex-Container-Start': 0, 'X-Plex-Container-Size': 60, 'type': 4},
+        params={'X-Plex-Token': PLEX_TOKEN, 'X-Plex-Container-Start': 0, 'X-Plex-Container-Size': 500, 'type': 4},
         headers={'Accept': 'application/json'},
-        timeout=10
+        timeout=15
     )
     items = response.json().get('MediaContainer', {}).get('Metadata', [])
-    result = []
+
+    # Dedupe by series: keep one entry per show using the most-recently-added
+    # episode for display, with `count` = how many of that show's episodes were
+    # in the recent window. Avoids the "60 FMA cards, no other shows" problem.
+    groups = {}
     for ep in items:
-        series_rk = ep.get('grandparentRatingKey')
+        key = ep.get('grandparentRatingKey') or ep.get('grandparentTitle', 'Unknown')
+        groups.setdefault(key, []).append(ep)
+
+    result = []
+    for eps in groups.values():
+        latest = max(eps, key=lambda e: e.get('addedAt', 0))
+        # Link to the SEASON of the most-recent episode (parentRatingKey), not
+        # the series — drops the user into the right season on click.
+        parent_rk = latest.get('parentRatingKey')
         result.append({
-            'id': ep.get('ratingKey'),
-            'ratingKey': ep.get('ratingKey'),
-            'seriesTitle': ep.get('grandparentTitle', 'Unknown'),
-            'title': ep.get('title', ''),
-            'seasonNumber': ep.get('parentIndex', 0),
-            'episodeNumber': ep.get('index', 0),
-            'addedAt': ep.get('addedAt'),
-            'thumb': f"/api/plex-thumb?path={ep['grandparentThumb']}" if ep.get('grandparentThumb') else None,
-            'url': f"https://app.plex.tv/desktop#!/server/{PLEX_MACHINE_ID}/details?key=%2Flibrary%2Fmetadata%2F{series_rk}"
+            'id': latest.get('ratingKey'),
+            'ratingKey': latest.get('ratingKey'),
+            'seriesTitle': latest.get('grandparentTitle', 'Unknown'),
+            'title': latest.get('title', ''),
+            'seasonNumber': latest.get('parentIndex', 0),
+            'episodeNumber': latest.get('index', 0),
+            'addedAt': latest.get('addedAt'),
+            'thumb': f"/api/plex-thumb?path={latest['grandparentThumb']}" if latest.get('grandparentThumb') else None,
+            'url': f"https://app.plex.tv/desktop#!/server/{PLEX_MACHINE_ID}/details?key=%2Flibrary%2Fmetadata%2F{parent_rk}",
+            'count': len(eps),
         })
+
+    result.sort(key=lambda x: -(x.get('addedAt') or 0))
     return {'episodes': result}
 
 @app.route('/api/recently-added-episodes', methods=['GET'])
@@ -830,12 +986,47 @@ def _fetch_detail(req):
         'type': media_type,
         'addedAt': added_at,
         'posterUrl': f'https://image.tmdb.org/t/p/w300{poster_path}' if poster_path else None,
+        'tmdbId': tmdb_id,
     }
 
     if rating_key:
         result['plexUrl'] = f'https://app.plex.tv/desktop#!/server/{PLEX_MACHINE_ID}/details?key=%2Flibrary%2Fmetadata%2F{rating_key}'
 
     return result
+
+
+# --- Recently-fulfilled hide list (admin curates which entries show on the feed) ---
+
+def _load_hidden_fulfilled():
+    """Returns a set of (tmdbId, type) tuples to exclude from /api/recently-fulfilled."""
+    try:
+        with open(HIDDEN_FULFILLED_FILE, 'r') as f:
+            data = json.load(f)
+        return {(int(item['tmdbId']), item['type']) for item in data if item.get('tmdbId')}
+    except (FileNotFoundError, json.JSONDecodeError):
+        return set()
+
+def _save_hidden_fulfilled(hidden_set):
+    items = [{'tmdbId': k[0], 'type': k[1]} for k in sorted(hidden_set)]
+    with open(HIDDEN_FULFILLED_FILE, 'w') as f:
+        json.dump(items, f, indent=2)
+
+@app.route('/api/recently-fulfilled/hide', methods=['POST'])
+def hide_fulfilled():
+    """Admin-only: stop showing a given (tmdbId, type) on the public feed."""
+    err = _require_admin()
+    if err: return err
+    body = request.get_json() or {}
+    tmdb_id = body.get('tmdbId')
+    mt = body.get('type') or body.get('mediaType')
+    if not tmdb_id or mt not in ('movie', 'tv'):
+        return jsonify({'error': 'tmdbId and type (movie|tv) required'}), 400
+    hidden = _load_hidden_fulfilled()
+    hidden.add((int(tmdb_id), mt))
+    _save_hidden_fulfilled(hidden)
+    # Invalidate the cached fulfilled response so the next GET reflects the hide.
+    _cache.pop('recently_fulfilled', None)
+    return jsonify({'success': True, 'hiddenCount': len(hidden)})
 
 
 def _fetch_anon_detail(req):
@@ -929,6 +1120,11 @@ def _fetch_recently_fulfilled():
         if soft_key in seen: continue
         seen.add(soft_key)
         merged.append(it)
+
+    # Filter admin-hidden entries by (tmdbId, type).
+    hidden = _load_hidden_fulfilled()
+    if hidden:
+        merged = [m for m in merged if (m.get('tmdbId'), m.get('type')) not in hidden]
 
     merged.sort(key=lambda x: x.get('addedAt') or 0, reverse=True)
     return {'requests': merged}

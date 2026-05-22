@@ -206,9 +206,9 @@
 </head>
 <body>
     <div class="container">
-        <a href="/status/" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:16px;text-decoration:none;color:var(--text-muted);font-size:14px;font-weight:500;transition:color 0.2s;" onmouseover="this.style.color='var(--warning)'" onmouseout="this.style.color='var(--text-muted)'">
+        <a href="/home/" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:16px;text-decoration:none;color:var(--text-muted);font-size:14px;font-weight:500;transition:color 0.2s;" onmouseover="this.style.color='var(--warning)'" onmouseout="this.style.color='var(--text-muted)'">
             <img src="/request/images/garf_watching_tv.jpg" alt="Home" style="width:36px;height:36px;border-radius:10px;object-fit:cover;">
-            <span>&larr; Back to Hub</span>
+            <span>&larr; Back to Home</span>
         </a>
         <div class="nav-toggle">
             <a href="/request/" class="nav-btn">
@@ -260,8 +260,6 @@
 
     <script>
         const CONFIG = {
-            apiKey: 'MTc2MjQ4MzExMzkzMzA5ZGQwNWRiLTUwOWUtNDc1Ny05NmQ2LTRlMGE5MTU1ZTA3OQ==',
-            overseerrUrl: '/api/overseerr',
             tmdbImageUrl: 'https://image.tmdb.org/t/p/w200'
         };
 
@@ -298,15 +296,13 @@
             const resultsDiv = document.getElementById('mediaResults');
             resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Searching library...</div>';
             try {
-                const response = await fetch(`${CONFIG.overseerrUrl}/v1/search?query=${encodeURIComponent(query)}`, {
-                    headers: { 'X-Api-Key': CONFIG.apiKey }
-                });
+                const response = await fetch(`/api/seerr-search?q=${encodeURIComponent(query)}`);
                 if (!response.ok) throw new Error('Search failed');
                 const data = await response.json();
                 if (data.results && data.results.length > 0) {
                     const resultsWithStatus = await Promise.all(
                         data.results.slice(0, 10).map(async (media) => {
-                            const status = await checkMediaStatus(media.mediaType, media.id);
+                            const status = await checkMediaStatus(media.mediaType, media.tmdbId);
                             return { ...media, status };
                         })
                     );
@@ -326,16 +322,12 @@
 
         async function checkMediaStatus(mediaType, tmdbId) {
             try {
-                const response = await fetch(`${CONFIG.overseerrUrl}/v1/${mediaType}/${tmdbId}`, {
-                    headers: { 'X-Api-Key': CONFIG.apiKey }
-                });
+                const response = await fetch(`/api/seerr-status/${mediaType}/${tmdbId}`);
                 if (!response.ok) return null;
                 const data = await response.json();
-                if (mediaType === 'tv' && data.mediaInfo) {
-                    const status = data.mediaInfo.status;
-                    if (status === 5 || status === 4 || status === 3) return 5;
-                }
-                return data.mediaInfo?.status || null;
+                const status = data.status;
+                if (mediaType === 'tv' && (status === 5 || status === 4 || status === 3)) return 5;
+                return status ?? null;
             } catch { return null; }
         }
 
@@ -346,11 +338,9 @@
                 const item = document.createElement('div');
                 item.className = 'result-item';
                 item.onclick = () => showMediaIssueForm(media);
-                const posterPath = media.posterPath || media.poster_path;
-                const posterUrl = posterPath ? `${CONFIG.tmdbImageUrl}${posterPath}` : '';
-                const title = media.title || media.name;
-                const year = media.releaseDate || media.release_date || media.firstAirDate || media.first_air_date;
-                const yearDisplay = year ? new Date(year).getFullYear() : 'N/A';
+                const posterUrl = media.posterUrl || '';
+                const title = media.title;
+                const yearDisplay = media.year || 'N/A';
                 const mediaType = media.mediaType === 'tv' ? 'TV Show' : 'Movie';
                 const mediaIcon = media.mediaType === 'tv' ? 'fa-tv' : 'fa-film';
                 item.innerHTML = `
@@ -369,7 +359,7 @@
 
         function showMediaIssueForm(media) {
             selectedMedia = media;
-            const title = media.title || media.name;
+            const title = media.title;
             const formDiv = document.getElementById('mediaIssueForm');
             const issueTypesHTML = ISSUE_TYPES.map(type => `
                 <button type="button" class="issue-type-btn" data-type="${type.id}">
@@ -408,17 +398,16 @@
             const issueType = selectedTypeBtn.dataset.type;
             const issueLabel = selectedTypeBtn.querySelector('span').textContent;
             const details = document.getElementById('mediaIssueDetails').value.trim();
-            const title = selectedMedia.title || selectedMedia.name;
+            const title = selectedMedia.title;
             const mediaType = selectedMedia.mediaType === 'tv' ? 'TV Show' : 'Movie';
-            const year = selectedMedia.releaseDate || selectedMedia.release_date || selectedMedia.firstAirDate || selectedMedia.first_air_date;
-            const yearDisplay = year ? new Date(year).getFullYear() : '';
+            const yearDisplay = selectedMedia.year || '';
             const formDiv = document.getElementById('mediaIssueForm');
             formDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Submitting...</div>';
             try {
                 const response = await fetch('/api/issue-report', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ title, year: yearDisplay, mediaType, issueType, issueLabel, details, tmdbId: selectedMedia.id })
+                    body: JSON.stringify({ title, year: yearDisplay, mediaType, issueType, issueLabel, details, tmdbId: selectedMedia.tmdbId })
                 });
                 if (response.ok) {
                     formDiv.innerHTML = '<div class="message success"><i class="fas fa-check-circle"></i>Issue reported successfully!</div>';

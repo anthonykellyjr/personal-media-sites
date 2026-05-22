@@ -1,0 +1,4 @@
+Contact: mailto:anthony.d.kelly@gmail.com
+Expires: 2027-05-22T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://akplex.tv/.well-known/security.txt
