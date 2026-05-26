@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { VueDraggable } from 'vue-draggable-plus'
 import { useApi } from './composables/useApi.js'
+import { PageHeader } from '@webhead/shared'
 
 const { kellyKey, setKellyKey, clearKellyKey, apiFetch } = useApi()
 
@@ -215,34 +216,29 @@ onUnmounted(() => { if (elapsedTimer) clearInterval(elapsedTimer) })
   <!-- ═══ MAIN APP ═══ -->
   <div v-else class="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900">
 
-    <!-- Header -->
-    <header class="sticky top-0 z-30 bg-dark-900/80 backdrop-blur-xl border-b border-white/10">
-      <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-4">
-        <h1 class="text-lg font-bold flex-shrink-0">
+    <PageHeader variant="bar" title="Kelly's Collection">
+      <template #title>
+        <h1 class="text-base sm:text-lg font-bold flex-shrink-0">
           <span class="bg-gradient-to-r from-pink-400 to-rose-400 bg-clip-text text-transparent">Kelly's Collection</span>
         </h1>
-        <div class="flex-1"></div>
+      </template>
 
-        <!-- Unsaved indicator -->
-        <span v-if="hasChanges" class="text-[10px] text-amber-400 uppercase tracking-wider">Unsaved</span>
+      <span v-if="hasChanges" class="text-[10px] text-amber-400 uppercase tracking-wider">Unsaved</span>
 
-        <!-- Save -->
-        <button @click="save"
-                :disabled="!canSave || isSaving"
-                class="px-5 py-2 bg-pink-600 hover:bg-pink-500 disabled:bg-slate-700 disabled:text-slate-500 text-white text-sm font-medium rounded-xl transition-all">
-          Save
-        </button>
+      <button @click="save"
+              :disabled="!canSave || isSaving"
+              class="px-5 py-2 bg-pink-600 hover:bg-pink-500 disabled:bg-slate-700 disabled:text-slate-500 text-white text-sm font-medium rounded-xl transition-all">
+        Save
+      </button>
 
-        <!-- Logout -->
-        <button @click="logout"
-                class="p-2 text-slate-500 hover:text-slate-300 transition-colors"
-                title="Logout">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-          </svg>
-        </button>
-      </div>
-    </header>
+      <button @click="logout"
+              class="p-2 text-slate-500 hover:text-slate-300 transition-colors"
+              title="Logout">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+        </svg>
+      </button>
+    </PageHeader>
 
     <!-- Content -->
     <main class="max-w-6xl mx-auto p-4">

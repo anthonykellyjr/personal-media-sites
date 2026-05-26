@@ -75,12 +75,67 @@
     .badge { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; margin-left: 6px; }
     .badge.movie { background: rgba(59, 130, 246, 0.25); color: #93c5fd; }
     .badge.tv    { background: rgba(16, 185, 129, 0.25); color: #6ee7b7; }
-    .matched-card { display: flex; gap: 12px; align-items: center; }
+    .matched-card { display: flex; gap: 12px; align-items: flex-start; }
     .matched-card img { width: 44px; height: 66px; border-radius: 6px; object-fit: cover; background: #222; flex-shrink: 0; }
-    .matched-card .info { flex: 1; }
+    .matched-card .info { flex: 1; min-width: 0; }
     .matched-card .title { font-size: 0.95rem; font-weight: 600; }
     .matched-card .orig { font-size: 0.75rem; color: var(--muted); font-style: italic; }
-    .actions { display: flex; gap: 8px; flex-shrink: 0; }
+    .actions { display: flex; gap: 8px; flex-shrink: 0; flex-direction: column; }
+    /* State buttons: one "active" (filled), others outlined. Click switches state. */
+    .state-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; align-items: center; }
+    .state-btn {
+      padding: 4px 10px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.05em; border-radius: 6px; border: 1px solid;
+      background: transparent; cursor: pointer; color: inherit; transition: background 0.15s;
+    }
+    .state-btn.pending     { color: #fcd34d; border-color: rgba(252, 211, 77, 0.4); }
+    .state-btn.searching   { color: #a5b4fc; border-color: rgba(165, 180, 252, 0.4); }
+    .state-btn.uploaded    { color: #6ee7b7; border-color: rgba(110, 231, 183, 0.4); }
+    .state-btn.pending:hover     { background: rgba(252, 211, 77, 0.1); }
+    .state-btn.searching:hover   { background: rgba(165, 180, 252, 0.1); }
+    .state-btn.uploaded:hover    { background: rgba(110, 231, 183, 0.1); }
+    .state-btn.active.pending    { background: rgba(252, 211, 77, 0.2);  color: #fde68a; }
+    .state-btn.active.searching  { background: rgba(165, 180, 252, 0.2); color: #c7d2fe; }
+    .state-btn.active.uploaded   { background: rgba(110, 231, 183, 0.2); color: #a7f3d0; }
+    .state-note {
+      font-size: 0.75rem; color: var(--muted); font-style: italic;
+      max-width: 100%; word-break: break-word;
+    }
+    .source-chip {
+      display: inline-block; padding: 1px 6px; border-radius: 4px;
+      font-size: 0.6rem; font-weight: 700; text-transform: uppercase;
+      margin-left: 6px; color: var(--muted); background: rgba(255,255,255,0.06);
+    }
+    /* Tab bar for the Matched section (Active / Uploaded). */
+    .match-tabs {
+      display: flex; gap: 4px; margin-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0;
+    }
+    .match-tab {
+      padding: 8px 16px; background: transparent; border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--muted); font-weight: 600; font-size: 0.9rem;
+      cursor: pointer; border-radius: 0;
+      display: inline-flex; align-items: center; gap: 8px;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .match-tab:hover { color: var(--text); background: transparent; }
+    .match-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    .tab-count {
+      display: inline-block; padding: 1px 7px; border-radius: 10px;
+      font-size: 0.7rem; font-weight: 700;
+      background: rgba(255,255,255,0.08); color: var(--text);
+    }
+    .match-tab.active .tab-count {
+      background: rgba(168, 85, 247, 0.25); color: var(--accent);
+    }
+    .matched-card img[src=""], .matched-card img:not([src]) {
+      background: rgba(255,255,255,0.05);
+    }
     .empty { color: var(--muted); font-size: 0.85rem; font-style: italic; padding: 6px 0; }
     .status { font-size: 0.85rem; margin-top: 12px; min-height: 1.2em; }
     .status.ok { color: #4ade80; }
@@ -154,9 +209,16 @@
       <div id="unmatchedList"><div class="empty">Nothing loaded yet.</div></div>
     </div>
 
-    <!-- Matched -->
+    <!-- Matched (tabbed: Active = pending + searching by default, Uploaded = archive) -->
     <div class="card">
-      <h2>Matched (<span id="matchedCount">0</span>)</h2>
+      <div class="match-tabs">
+        <button class="match-tab active" data-mtab="active">
+          Active <span class="tab-count" id="activeCount">0</span>
+        </button>
+        <button class="match-tab" data-mtab="uploaded">
+          Uploaded <span class="tab-count" id="uploadedCount">0</span>
+        </button>
+      </div>
       <div id="matchedList"><div class="empty">Nothing loaded yet.</div></div>
     </div>
 
@@ -180,8 +242,16 @@
       unmatched:   document.getElementById('unmatchedList'),
       matched:     document.getElementById('matchedList'),
       unmatchedCount: document.getElementById('unmatchedCount'),
-      matchedCount: document.getElementById('matchedCount'),
+      activeCount: document.getElementById('activeCount'),
+      uploadedCount: document.getElementById('uploadedCount'),
+      tabs: document.querySelectorAll('.match-tab'),
     };
+
+    // Tab state. 'active' = pending + searching items (the actionable ones).
+    // 'uploaded' = archive of completed items. Toggle is client-side: we load
+    // everything once and filter from a cached array — no extra API hit.
+    let currentMatchTab = 'active';
+    let allMatchedCache = [];
 
     // ── Admin key: load remembered, keep in sync ────────────────────────────
     const saved = localStorage.getItem(KEY_STORAGE);
@@ -279,57 +349,156 @@
     function matchedRows() {
       return el.matched.querySelectorAll('.row-item');
     }
-    function updateMatchedCount() {
-      const n = matchedRows().length;
-      el.matchedCount.textContent = n;
-      if (n === 0) el.matched.innerHTML = '<div class="empty">No matches yet on this page.</div>';
+    // Recompute Active / Uploaded counts from the cached items.
+    // Called whenever allMatchedCache changes (load, state-button click, etc.).
+    function updateTabCounts() {
+      let active = 0, uploaded = 0;
+      for (const it of allMatchedCache) {
+        if (it.state === 'uploaded') uploaded++;
+        else active++;  // pending + searching + anything else
+      }
+      el.activeCount.textContent = active;
+      el.uploadedCount.textContent = uploaded;
     }
     function clearMatched() {
       el.matched.innerHTML = '';
-      updateMatchedCount();
     }
     function appendMatched(r, posterUrl) {
-      // Remove the empty-state placeholder if present.
+      // Compatibility wrapper for the success-path of /match — converts the
+      // single text_request shape into the unified item shape renderMatched uses.
+      renderMatchedItem({
+        source: 'text_request',
+        id: r.id,
+        tmdbId: r.tmdbId,
+        type: r.mediaType,
+        title: r.matchedTitle,
+        year: r.matchedYear,
+        state: 'pending',  // freshly matched
+        note: '',
+        matched: true,
+        text: r.text,
+        matchedAt: r.matchedAt,
+      }, posterUrl);
+    }
+
+    // Render the Matched section, filtered by the currently-selected tab.
+    // Pulls from allMatchedCache (set by loadAll) so tab switches are instant.
+    function applyMatchTab() {
+      const filtered = currentMatchTab === 'uploaded'
+        ? allMatchedCache.filter(it => it.state === 'uploaded')
+        : allMatchedCache.filter(it => it.state !== 'uploaded');
+      el.matched.innerHTML = '';
+      if (!filtered.length) {
+        const msg = currentMatchTab === 'uploaded'
+          ? 'No uploaded items yet.'
+          : 'Nothing active — you\'re caught up. 🎉';
+        el.matched.innerHTML = `<div class="empty">${msg}</div>`;
+      } else {
+        // Render newest-matched-first; for Seerr-only items use createdAt.
+        const sorted = filtered.slice().sort((a, b) =>
+          (b.matchedAt || b.createdAt || 0) - (a.matchedAt || a.createdAt || 0)
+        );
+        sorted.forEach(it => renderMatchedItem(it, null));
+      }
+    }
+
+    // Compatibility wrapper kept for legacy callers (the /match success path)
+    // that pass us a single item. Just refreshes from server.
+    function renderMatched(_items) {
+      // _items arg is ignored now — we always use allMatchedCache + applyMatchTab.
+      applyMatchTab();
+    }
+
+    function renderMatchedItem(it, posterUrl) {
+      // Strip the empty-state if it's there from a previous render.
       const empty = el.matched.querySelector('.empty');
       if (empty) empty.remove();
+
       const node = document.createElement('div');
       node.className = 'row-item matched-card';
-      node.dataset.id = r.id;
+      // Data attributes drive the state-button + delete handlers below.
+      if (it.id != null) node.dataset.id = it.id;
+      node.dataset.tmdb = it.tmdbId || '';
+      node.dataset.type = it.type || '';
+      node.dataset.source = it.source;
+
+      const isSeerr = it.source === 'seerr';
+      const title = it.title || (isSeerr ? `TMDB ${it.tmdbId}` : 'Unknown');
+      const yearSpan = it.year ? `<span style="color:var(--muted);font-weight:400;">(${it.year})</span>` : '';
+      const badge = it.type ? `<span class="badge ${it.type}">${it.type}</span>` : '';
+      const sourceChip = isSeerr ? '<span class="source-chip">Seerr</span>' : '';
+      const orig = it.text ? `<div class="orig">From: "${escapeHtml(it.text)}"</div>` : '';
+      const meta = isSeerr
+        ? `<div class="meta" style="margin-top:4px;">Seerr req · requested ${fmtDate(it.createdAt) || '?'}</div>`
+        : `<div class="meta" style="margin-top:4px;">Matched ${fmtDate(it.matchedAt) || '?'}</div>`;
+
+      // State buttons — current state highlighted. Click cycles through.
+      const state = it.state || 'pending';
+      const noteHtml = (state === 'searching' && it.note)
+        ? `<span class="state-note">— ${escapeHtml(it.note)}</span>` : '';
+
+      // Actions column: text_request items can be unmatched/deleted; Seerr-only
+      // items can only have state changed (we don't touch Seerr requests here).
+      const actions = isSeerr
+        ? ''  // no unmatch/delete for Seerr-only items
+        : `<button class="unmatch-btn" title="Unmatch (return to Unmatched)">Unmatch</button>
+           <button class="danger delete-btn" title="Delete">×</button>`;
+
+      // Prefer the poster URL the API enriched onto the item over the legacy
+      // posterUrl arg (used only by the /match success path's appendMatched).
+      const finalPoster = it.posterUrl || posterUrl;
       node.innerHTML = `
-        ${posterUrl ? `<img src="${posterUrl}" alt="">` : `<img alt="">`}
+        ${finalPoster ? `<img src="${finalPoster}" alt="" loading="lazy">` : `<img alt="">`}
         <div class="info">
-          <div class="title">
-            ${escapeHtml(r.matchedTitle || 'Unknown')}
-            ${r.matchedYear ? `<span style="color:var(--muted);font-weight:400;">(${r.matchedYear})</span>` : ''}
-            <span class="badge ${r.mediaType}">${r.mediaType}</span>
+          <div class="title">${escapeHtml(title)} ${yearSpan} ${badge} ${sourceChip}</div>
+          ${orig}
+          ${meta}
+          <div class="state-row">
+            <button class="state-btn pending   ${state === 'pending'   ? 'active' : ''}" data-state="pending">Pending</button>
+            <button class="state-btn searching ${state === 'searching' ? 'active' : ''}" data-state="searching">Searching</button>
+            <button class="state-btn uploaded  ${state === 'uploaded'  ? 'active' : ''}" data-state="uploaded">Uploaded</button>
+            ${noteHtml}
           </div>
-          <div class="orig">From: "${escapeHtml(r.text)}"</div>
-          <div class="meta" style="margin-top:4px;">Matched ${fmtDate(r.matchedAt)}</div>
         </div>
-        <div class="actions">
-          <button class="unmatch-btn" title="Unmatch (return to Unmatched)">Unmatch</button>
-          <button class="danger delete-btn" title="Delete">×</button>
-        </div>
+        <div class="actions">${actions}</div>
       `;
-      el.matched.prepend(node);
-      el.matchedCount.textContent = matchedRows().length;
+      el.matched.appendChild(node);
     }
 
     // ── Main load ───────────────────────────────────────────────────────────
+    // Pulls the unified admin view: unmatched text_requests, matched
+    // text_requests, and Seerr-originated requests not already covered by a
+    // text_request entry. Each matched item includes its current `state`
+    // (override > Seerr-derived) so the state buttons render correctly.
     async function loadAll() {
       try {
         setStatus('Loading…', 'info');
-        const data = await apiFetch('/api/text-requests');
-        const unmatched = (data.requests || []).filter(r => !r.tmdbId);
+        const data = await apiFetch('/api/admin/all-requests');
+        const items = data.items || [];
+        const unmatched = items.filter(it => it.source === 'text_request' && !it.matched);
+        const matched = items.filter(it => it.matched);
+        // Cache the matched list so tab switches don't re-fetch.
+        allMatchedCache = matched;
         renderUnmatched(unmatched);
+        updateTabCounts();
+        applyMatchTab();
         showAuthed(true);
-        setStatus(`Loaded ${unmatched.length} unmatched.`, 'ok');
+        setStatus(`Loaded ${unmatched.length} unmatched · ${matched.length} matched.`, 'ok');
       } catch (err) {
         setStatus('Load failed: ' + err.message, 'err');
         if (err.message === 'Bad admin key') showAuthed(false);
       }
     }
     el.loadBtn.addEventListener('click', loadAll);
+
+    // Tab clicks — instant client-side filter, no extra fetch.
+    el.tabs.forEach(t => {
+      t.addEventListener('click', () => {
+        currentMatchTab = t.dataset.mtab;
+        el.tabs.forEach(x => x.classList.toggle('active', x === t));
+        applyMatchTab();
+      });
+    });
 
     el.seedBtn.addEventListener('click', async () => {
       const texts = el.seedBox.value.split('\n').map(s => s.trim()).filter(Boolean);
@@ -417,12 +586,48 @@
     el.matched.addEventListener('click', async (e) => {
       const row = e.target.closest('.row-item');
       if (!row) return;
-      const id = parseInt(row.dataset.id, 10);
+      const id = row.dataset.id ? parseInt(row.dataset.id, 10) : null;
+
+      if (e.target.classList.contains('state-btn')) {
+        // Cycle to the clicked state. Override is keyed by (tmdbId, type) so
+        // it works for both text_request and Seerr-only items.
+        const newState = e.target.dataset.state;
+        const tmdbId = parseInt(row.dataset.tmdb, 10);
+        const type = row.dataset.type;
+        if (!tmdbId || !type) {
+          toast('Cannot set state: missing tmdbId/type.', 'err');
+          return;
+        }
+        let note = '';
+        if (newState === 'searching') {
+          // Optional context for searching state — admin can describe what
+          // they've tried so far. Skip if blank.
+          note = prompt('Optional note (what have you tried? where are you stuck?):', '') || '';
+        }
+        try {
+          await apiFetch('/api/admin/request-state', {
+            method: 'POST',
+            body: JSON.stringify({ tmdbId, type, state: newState, note }),
+          });
+          // Update the active class locally for snappy feedback.
+          row.querySelectorAll('.state-btn').forEach(b => b.classList.remove('active'));
+          e.target.classList.add('active');
+          toast(`Marked as ${newState}.`, 'ok');
+          // Reload to pick up the note display + any side-effect.
+          loadAll();
+        } catch (err) {
+          toast('State change failed: ' + err.message, 'err');
+        }
+        return;
+      }
+
+      // Unmatch / Delete only apply to text_request rows.
+      if (row.dataset.source !== 'text_request' || id == null) return;
+
       if (e.target.classList.contains('unmatch-btn')) {
         try {
           await apiFetch(`/api/text-requests/${id}/match`, { method: 'DELETE' });
           row.remove();
-          updateMatchedCount();
           toast('Unmatched — request is back in Unmatched.', 'ok');
           loadAll();
         } catch (err) {
@@ -434,8 +639,8 @@
         try {
           await apiFetch(`/api/text-requests/${id}`, { method: 'DELETE' });
           row.remove();
-          updateMatchedCount();
           toast('Request deleted.', 'ok');
+          loadAll();  // recompute tab counts now that one is gone
         } catch (err) {
           setStatus('Delete failed: ' + err.message, 'err');
           toast('Delete failed: ' + err.message, 'err');

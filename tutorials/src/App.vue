@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
+import { PageHeader } from '@webhead/shared'
 
 const videos = ref([])
 const loading = ref(true)
@@ -33,11 +34,7 @@ onMounted(async () => {
 <template>
   <div class="min-h-screen p-4 sm:p-6 lg:p-8">
     <div class="max-w-7xl mx-auto">
-      <!-- Header -->
-      <header class="text-center mb-8">
-        <h1 class="text-3xl sm:text-4xl font-bold text-white mb-2">Plex Tutorials</h1>
-        <p class="text-slate-400 text-lg">Setup guides and tips for the best experience</p>
-      </header>
+      <PageHeader title="Plex Tutorials" subtitle="Setup guides and tips for the best experience" />
 
       <!-- Category Filter -->
       <div v-if="categories.length > 2" class="flex flex-wrap justify-center gap-2 mb-8">

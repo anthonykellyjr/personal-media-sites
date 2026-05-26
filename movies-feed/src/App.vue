@@ -330,14 +330,19 @@ onMounted(() => {
 
       <div v-if="activeTab === 'requests'">
         <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6">
-          <component v-for="req in visibleRequests" :key="req.title + req.type" :is="req.plexUrl ? 'a' : 'div'" :href="req.plexUrl" :target="req.plexUrl ? '_blank' : undefined"
-             class="group relative bg-slate-950/60 border border-white/10 rounded-xl overflow-hidden transition-all duration-200 hover:scale-105 hover:-translate-y-1 hover:shadow-[0_12px_30px_-8px_rgba(0,0,0,0.6),0_0_20px_rgba(168,85,247,0.2)] hover:border-purple-500/40 hover:z-10">
+          <component v-for="req in visibleRequests" :key="`${req.title}-${req.type}-${req.addedAt}`" :is="req.plexUrl ? 'a' : 'div'" :href="req.plexUrl" :target="req.plexUrl ? '_blank' : undefined"
+             class="group relative bg-slate-950/60 border border-white/10 rounded-xl overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_12px_30px_-8px_rgba(0,0,0,0.6),0_0_20px_rgba(168,85,247,0.2)] hover:border-purple-500/40 hover:z-10"
+             :class="req.plexUrl ? 'hover:scale-105 cursor-pointer' : ''">
             <div class="relative w-full aspect-[2/3] overflow-hidden">
               <img v-if="req.posterUrl" :src="req.posterUrl" :alt="req.title" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" loading="lazy">
-              <div v-else class="w-full h-full bg-slate-800 flex items-center justify-center">
-                <span class="text-slate-600 text-lg">?</span>
+              <div v-else class="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 flex flex-col items-center justify-center gap-2 px-3 text-center">
+                <svg class="w-10 h-10 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                <span class="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Text Request</span>
               </div>
-              <div class="absolute top-2 right-2 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide shadow-lg"
+              <!-- Type badge only renders for proper movie/tv items; unmatched
+                   text requests have type='request' and no metadata yet. -->
+              <div v-if="req.type === 'movie' || req.type === 'tv'"
+                   class="absolute top-2 right-2 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide shadow-lg"
                    :class="req.type === 'movie' ? 'bg-blue-600/90 text-blue-100' : 'bg-emerald-600/90 text-emerald-100'">
                 {{ req.type === 'movie' ? 'Movie' : 'TV' }}
               </div>
@@ -354,9 +359,24 @@ onMounted(() => {
             <div class="p-3">
               <div class="text-sm font-bold text-white truncate leading-tight mb-1">{{ req.title }}</div>
               <div class="flex items-center justify-between mt-1">
-                <span class="text-xs text-slate-400">{{ req.year }}</span>
+                <span class="text-xs text-slate-400">{{ req.year || '—' }}</span>
                 <span class="text-xs font-semibold text-purple-300 bg-purple-900/40 px-2 py-0.5 rounded-md">{{ formatTime(req.addedAt) }}</span>
               </div>
+            </div>
+            <!-- Status footer:
+                 emerald = uploaded to Plex
+                 indigo  = admin is actively searching (hard to find)
+                 amber   = pending in Seerr / unmatched text request -->
+            <div class="px-3 py-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider border-t"
+                 :class="req.state === 'uploaded'
+                   ? 'bg-emerald-600/90 text-emerald-50 border-emerald-400/40'
+                   : req.state === 'searching'
+                   ? 'bg-indigo-600/90 text-indigo-50 border-indigo-400/40'
+                   : 'bg-amber-600/90 text-amber-50 border-amber-400/40'">
+              <span class="w-1.5 h-1.5 rounded-full bg-current shadow-[0_0_4px_currentColor]"></span>
+              <span>{{ req.state === 'uploaded' ? 'Uploaded' : req.state === 'searching' ? 'Searching' : 'Pending' }}</span>
+              <span v-if="req.state === 'pending'" class="ml-auto text-[10px] font-medium opacity-80 normal-case tracking-normal">waiting to upload</span>
+              <span v-else-if="req.state === 'searching'" class="ml-auto text-[10px] font-medium opacity-80 normal-case tracking-normal">hard to find</span>
             </div>
           </component>
         </div>
@@ -364,7 +384,7 @@ onMounted(() => {
 
       <div v-if="activeTab === 'movies' && movies.length === 0 && !isLoading && !error" class="text-center p-10 text-slate-400">No movies found</div>
       <div v-if="activeTab === 'episodes' && episodes.length === 0 && !isLoading && !error" class="text-center p-10 text-slate-400">No episodes found</div>
-      <div v-if="activeTab === 'requests' && fulfilledRequests.length === 0 && !isLoading && !error" class="text-center p-10 text-slate-400">No fulfilled requests found</div>
+      <div v-if="activeTab === 'requests' && fulfilledRequests.length === 0 && !isLoading && !error" class="text-center p-10 text-slate-400">No requests found</div>
 
       <div ref="sentinel" class="h-px"></div>
       <div v-if="hasMore" class="text-center text-sm text-slate-500 py-8">Loading more…</div>

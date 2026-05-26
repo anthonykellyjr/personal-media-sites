@@ -33,6 +33,11 @@ CORS(app)
 ANNOUNCEMENTS_FILE = '/app/announcements.json'
 TEXT_REQUESTS_FILE = '/app/text_requests.json'
 HIDDEN_FULFILLED_FILE = '/app/hidden_fulfilled.json'
+# Admin overrides for per-request state. Keyed by (tmdbId, type). Used when an
+# admin wants to mark a Seerr-originated request as "searching" (hard to find)
+# or override the auto-detected pending/uploaded state. Persisted across restarts.
+REQUEST_OVERRIDES_FILE = '/app/request_overrides.json'
+VALID_REQUEST_STATES = ('pending', 'searching', 'uploaded')
 ADMIN_KEY = os.environ['ADMIN_KEY']
 TAUTULLI_URL = os.environ.get('TAUTULLI_URL', 'http://10.0.0.222:8182')
 TAUTULLI_API_KEY = os.environ['TAUTULLI_API_KEY']
@@ -64,6 +69,23 @@ def cached(key, ttl_seconds, fetcher):
         if entry:
             return entry['data']
         raise e
+
+# --- Request-status version counter ---
+# Bumped every time anything that affects /api/recently-fulfilled changes
+# (new anon request, admin match/unmatch/state-change, Quick Request submit,
+# fulfilled hide). Frontends poll the lightweight /api/recently-fulfilled/version
+# endpoint and only do the full fetch when the version changes — gives near-
+# real-time updates without persistent connections or frequent heavy fetches.
+# Resets to 0 on container restart, which still triggers a refetch in any
+# client that had a non-zero value (the inequality check fires either way).
+_request_status_version = 0
+
+def _invalidate_request_status():
+    """Drop the recently-fulfilled cache AND bump the version counter so any
+    polling client picks up the change on its next 30-second check."""
+    global _request_status_version
+    _cache.pop('recently_fulfilled', None)
+    _request_status_version += 1
 
 # --- Announcements ---
 
@@ -177,6 +199,7 @@ def anon_request():
         'matchedAt': None,
     })
     _save_text_requests(items)
+    _invalidate_request_status()
 
     print(f"Anonymous request received: {title}")
     admin_url = 'https://akplex.tv/requests-admin/'
@@ -243,6 +266,7 @@ def add_text_requests():
         added.append(rec)
         next_id += 1
     _save_text_requests(items)
+    _invalidate_request_status()
     return jsonify({'success': True, 'added': added})
 
 @app.route('/api/text-requests/<int:req_id>/match', methods=['POST'])
@@ -267,7 +291,7 @@ def match_text_request(req_id):
             r['matchedYear'] = body.get('year')
             r['matchedAt'] = int(time.time())
             _save_text_requests(items)
-            _cache.pop('recently_fulfilled', None)
+            _invalidate_request_status()
             return jsonify({'success': True, 'request': r})
     return jsonify({"error": "Not found"}), 404
 
@@ -287,7 +311,7 @@ def unmatch_text_request(req_id):
             r['matchedYear'] = None
             r['matchedAt'] = None
             _save_text_requests(items)
-            _cache.pop('recently_fulfilled', None)
+            _invalidate_request_status()
             return jsonify({'success': True})
     return jsonify({"error": "Not found"}), 404
 
@@ -301,7 +325,7 @@ def delete_text_request(req_id):
     if len(new_items) == len(items):
         return jsonify({"error": "Not found"}), 404
     _save_text_requests(new_items)
-    _cache.pop('recently_fulfilled', None)
+    _invalidate_request_status()
     return jsonify({'success': True})
 
 def _seerr_multi_search(query, limit=20):
@@ -438,7 +462,7 @@ def quick_request():
         'matchedAt': ts_now,
     })
     _save_text_requests(items)
-    _cache.pop('recently_fulfilled', None)
+    _invalidate_request_status()
 
     # 3. Notify admin (same channels as anon_request).
     label = f"{title}" + (f" ({year})" if year else "")
@@ -939,12 +963,22 @@ def seerr_status():
 # --- Recently Fulfilled Requests (from Seerr) ---
 
 def _fetch_detail(req):
-    """Fetch title/year/poster for a single Seerr request via its detail endpoint."""
+    """Fetch title/year/poster for a single Seerr request via its detail endpoint.
+    Returns a dict with `state`: 'uploaded' if Plex has it (Seerr status >= 4),
+    else 'pending' (queued/processing in Seerr).
+    """
     media = req.get('media', {})
     tmdb_id = media.get('tmdbId')
     media_type = req.get('type', media.get('mediaType', 'movie'))
     rating_key = media.get('ratingKey') or media.get('ratingKey4k') or ''
     added_at_str = media.get('mediaAddedAt') or req.get('updatedAt', '')
+    # Seerr media.status: 1=unknown, 2=pending, 3=processing, 4=partial, 5=available
+    state = 'uploaded' if (media.get('status') or 0) >= 4 else 'pending'
+    # Admin override (e.g. 'searching') takes precedence over Seerr's auto-detect.
+    if tmdb_id and media_type in ('movie', 'tv'):
+        ov = _load_request_overrides().get((int(tmdb_id), media_type))
+        if ov and ov.get('state'):
+            state = ov['state']
 
     # Convert ISO timestamp to Unix epoch
     added_at = None
@@ -987,6 +1021,7 @@ def _fetch_detail(req):
         'addedAt': added_at,
         'posterUrl': f'https://image.tmdb.org/t/p/w300{poster_path}' if poster_path else None,
         'tmdbId': tmdb_id,
+        'state': state,
     }
 
     if rating_key:
@@ -1025,12 +1060,16 @@ def hide_fulfilled():
     hidden.add((int(tmdb_id), mt))
     _save_hidden_fulfilled(hidden)
     # Invalidate the cached fulfilled response so the next GET reflects the hide.
-    _cache.pop('recently_fulfilled', None)
+    _invalidate_request_status()
     return jsonify({'success': True, 'hiddenCount': len(hidden)})
 
 
 def _fetch_anon_detail(req):
-    """Look up a matched anon request via Seerr; return a display item only if Plex-available."""
+    """Look up a matched anon request via Seerr; return a display item with `state`.
+    Unlike _fetch_detail, this works from a text_request entry (tmdbId + mediaType
+    set by the admin via /requests-admin/). Returns items in both 'pending' and
+    'uploaded' states so the public feed shows the full lifecycle.
+    """
     tmdb_id = req.get('tmdbId')
     media_type = req.get('mediaType')
     if not tmdb_id or media_type not in ('movie', 'tv'):
@@ -1050,9 +1089,11 @@ def _fetch_anon_detail(req):
         return None
 
     media_info = detail.get('mediaInfo') or {}
-    # Seerr status: 4=partial, 5=available. Skip anything not yet available.
-    if (media_info.get('status') or 0) < 4:
-        return None
+    state = 'uploaded' if (media_info.get('status') or 0) >= 4 else 'pending'
+    # Admin override takes precedence over Seerr's auto-detect.
+    ov = _load_request_overrides().get((int(tmdb_id), media_type))
+    if ov and ov.get('state'):
+        state = ov['state']
 
     title = detail.get('title') or detail.get('name') or req.get('matchedTitle') or 'Unknown'
     poster_path = detail.get('posterPath') or ''
@@ -1081,17 +1122,284 @@ def _fetch_anon_detail(req):
         'addedAt': added_at,
         'posterUrl': f'https://image.tmdb.org/t/p/w300{poster_path}' if poster_path else None,
         'tmdbId': tmdb_id,
+        'state': state,
     }
     if rating_key:
         out['plexUrl'] = f'https://app.plex.tv/desktop#!/server/{PLEX_MACHINE_ID}/details?key=%2Flibrary%2Fmetadata%2F{rating_key}'
     return out
 
 
+# --- Admin per-request state overrides --------------------------------------
+# Stored as a list of {tmdbId, type, state, note, updatedAt} dicts. Admins set
+# overrides via POST /api/admin/request-state to mark a request as 'searching'
+# (hard to find but still working on it) or to force pending/uploaded. The
+# request fetchers below merge these in so the override takes precedence over
+# Seerr's auto-detected state.
+
+def _load_request_overrides():
+    """Return overrides as dict keyed by (tmdbId, type) -> {state, note, updatedAt}."""
+    try:
+        with open(REQUEST_OVERRIDES_FILE, 'r') as f:
+            data = json.load(f)
+        out = {}
+        for item in data:
+            tmdb = item.get('tmdbId')
+            t = item.get('type')
+            if tmdb and t in ('movie', 'tv'):
+                out[(int(tmdb), t)] = {
+                    'state': item.get('state'),
+                    'note': item.get('note', ''),
+                    'updatedAt': item.get('updatedAt'),
+                }
+        return out
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+def _save_request_overrides(overrides_dict):
+    items = [
+        {'tmdbId': k[0], 'type': k[1], 'state': v.get('state'), 'note': v.get('note', ''), 'updatedAt': v.get('updatedAt')}
+        for k, v in sorted(overrides_dict.items())
+    ]
+    with open(REQUEST_OVERRIDES_FILE, 'w') as f:
+        json.dump(items, f, indent=2)
+
+@app.route('/api/admin/request-state', methods=['POST'])
+def set_request_state():
+    """Admin: set the displayed state for a (tmdbId, type) request.
+    Body: {"tmdbId": int, "type": "movie"|"tv", "state": "pending"|"searching"|"uploaded", "note": str?}
+    Pass state="" or null to clear the override (back to auto-detect from Seerr).
+    """
+    err = _require_admin()
+    if err: return err
+    body = request.get_json() or {}
+    tmdb_id = body.get('tmdbId')
+    mt = body.get('type')
+    state = body.get('state')
+    note = body.get('note', '') or ''
+    if not tmdb_id or mt not in ('movie', 'tv'):
+        return jsonify({'error': 'tmdbId and type (movie|tv) required'}), 400
+    if state and state not in VALID_REQUEST_STATES:
+        return jsonify({'error': f'state must be one of {VALID_REQUEST_STATES} or empty to clear'}), 400
+    overrides = _load_request_overrides()
+    key = (int(tmdb_id), mt)
+    if not state:
+        overrides.pop(key, None)
+    else:
+        overrides[key] = {'state': state, 'note': note, 'updatedAt': int(time.time())}
+    _save_request_overrides(overrides)
+    _invalidate_request_status()
+    return jsonify({'success': True, 'overrideCount': len(overrides)})
+
+def _fetch_tmdb_detail(key):
+    """Fetch title/year/poster from Seerr for a (tmdb_id, media_type) tuple.
+    Returns (key, dict-or-None). Used by admin_all_requests to enrich items
+    in parallel so the admin page doesn't show 'TMDB 7345' / no posters.
+    """
+    tmdb_id, media_type = key
+    endpoint = 'movie' if media_type == 'movie' else 'tv'
+    try:
+        r = requests.get(
+            f'{SEERR_URL}/api/v1/{endpoint}/{tmdb_id}',
+            headers={'X-Api-Key': SEERR_API_KEY},
+            timeout=5
+        )
+        if r.status_code != 200:
+            return key, None
+        d = r.json()
+        title = d.get('title') or d.get('name') or d.get('originalTitle') or 'Unknown'
+        date_field = d.get('releaseDate') or d.get('firstAirDate') or ''
+        year = None
+        if len(date_field) >= 4:
+            try: year = int(date_field[:4])
+            except ValueError: pass
+        poster_path = d.get('posterPath') or ''
+        poster_url = f'https://image.tmdb.org/t/p/w185{poster_path}' if poster_path else None
+        # Also pull mediaInfo.status — this is the authoritative "is it in Plex"
+        # signal for matched items that may not appear in the recent /request
+        # list (e.g. older Seerr requests outside the take=200 window, OR text
+        # requests that were never in Seerr but the file is in Plex now).
+        media_info = d.get('mediaInfo') or {}
+        return key, {
+            'title': title,
+            'year': year,
+            'posterUrl': poster_url,
+            'mediaStatus': media_info.get('status', 0),
+        }
+    except Exception:
+        return key, None
+
+
+def _build_admin_all_requests():
+    """Heavy work for /api/admin/all-requests. Cached so repeated admin-page
+    loads don't refetch 80+ TMDB details every time. Cache is invalidated on
+    any state-changing action via _invalidate_request_status()."""
+    text_items = _load_text_requests()
+    overrides = _load_request_overrides()
+
+    # Pull Seerr's full request list (take=200 covers typical instances —
+    # the old take=50 missed older items causing state miscalcs).
+    seerr_results = []
+    try:
+        r = requests.get(
+            f'{SEERR_URL}/api/v1/request',
+            params={'take': 200, 'skip': 0, 'filter': 'all', 'sort': 'modified'},
+            headers={'X-Api-Key': SEERR_API_KEY},
+            timeout=15
+        )
+        if r.status_code == 200:
+            seerr_results = r.json().get('results', [])
+    except Exception as e:
+        print(f'admin_all_requests: Seerr list fetch failed: {e}')
+
+    # Index Seerr requests by (tmdbId, type) — keep the full request object
+    # so we have access to media.status AND createdAt etc.
+    seerr_by_key = {}
+    for sr in seerr_results:
+        media = sr.get('media') or {}
+        tmdb = media.get('tmdbId')
+        t = sr.get('type', media.get('mediaType'))
+        if tmdb and t in ('movie', 'tv'):
+            seerr_by_key[(int(tmdb), t)] = sr
+
+    # text_keys: items already represented as text_requests — used to dedupe
+    # Seerr-only entries so we don't show the same tmdbId twice.
+    text_keys = set()
+    for it in text_items:
+        if it.get('tmdbId') and it.get('mediaType') in ('movie', 'tv'):
+            text_keys.add((int(it['tmdbId']), it['mediaType']))
+
+    # Build the set of keys that need TMDB detail enrichment (title + poster +
+    # authoritative status). Every matched item gets enriched.
+    detail_keys = set()
+    for it in text_items:
+        if it.get('tmdbId') and it.get('mediaType') in ('movie', 'tv'):
+            detail_keys.add((int(it['tmdbId']), it['mediaType']))
+    for key in seerr_by_key:
+        if key not in text_keys:
+            detail_keys.add(key)
+
+    # Parallel fetch — typically ~30-100 calls, completes in <2s with workers=10.
+    detail_map = {}
+    if detail_keys:
+        with ThreadPoolExecutor(max_workers=10) as ex:
+            for key, info in ex.map(_fetch_tmdb_detail, detail_keys):
+                if info:
+                    detail_map[key] = info
+
+    def derive_state(tmdb_id, media_type):
+        """Override > TMDB detail status > Seerr-request status > 'pending'."""
+        ov = overrides.get((int(tmdb_id), media_type))
+        if ov and ov.get('state'):
+            return ov['state'], ov.get('note', '')
+        # Prefer the mediaInfo.status from the per-item detail call — it's the
+        # most up-to-date "is the file in Plex" signal, and it covers items
+        # not in the recent /request list.
+        d = detail_map.get((int(tmdb_id), media_type))
+        if d and d.get('mediaStatus'):
+            return ('uploaded' if d['mediaStatus'] >= 4 else 'pending'), ''
+        sr = seerr_by_key.get((int(tmdb_id), media_type))
+        if sr:
+            ms = (sr.get('media') or {}).get('status', 0)
+            return ('uploaded' if ms >= 4 else 'pending'), ''
+        return 'pending', ''
+
+    def parse_iso_ts(s):
+        if not s: return None
+        try:
+            return int(datetime.fromisoformat(s.replace('Z', '+00:00')).timestamp())
+        except Exception:
+            return None
+
+    out = []
+    for it in text_items:
+        matched = bool(it.get('tmdbId') and it.get('mediaType') in ('movie', 'tv'))
+        if matched:
+            key = (int(it['tmdbId']), it['mediaType'])
+            state, note = derive_state(*key)
+            d = detail_map.get(key) or {}
+            title = d.get('title') or it.get('matchedTitle') or it.get('text') or 'Unknown'
+            year = d.get('year') or it.get('matchedYear')
+            poster = d.get('posterUrl')
+        else:
+            state, note = None, ''
+            title = it.get('text') or 'Unknown'
+            year = None
+            poster = None
+        out.append({
+            'source': 'text_request',
+            'id': it['id'],
+            'text': it.get('text'),
+            'tmdbId': it.get('tmdbId'),
+            'type': it.get('mediaType'),
+            'title': title,
+            'year': year,
+            'posterUrl': poster,
+            'matchedAt': it.get('matchedAt'),
+            'createdAt': it.get('createdAt'),
+            'state': state,
+            'note': note,
+            'matched': matched,
+        })
+
+    # Seerr-only items (no corresponding text_request entry)
+    for key, sr in seerr_by_key.items():
+        if key in text_keys:
+            continue
+        tmdb_id, t = key
+        state, note = derive_state(tmdb_id, t)
+        d = detail_map.get(key) or {}
+        created_unix = parse_iso_ts(sr.get('createdAt'))
+        out.append({
+            'source': 'seerr',
+            'seerrRequestId': sr.get('id'),
+            'tmdbId': tmdb_id,
+            'type': t,
+            'title': d.get('title'),
+            'year': d.get('year'),
+            'posterUrl': d.get('posterUrl'),
+            'requestedBy': (sr.get('requestedBy') or {}).get('displayName'),
+            'createdAt': created_unix,
+            'state': state,
+            'note': note,
+            'matched': True,
+        })
+
+    return {'items': out}
+
+
+@app.route('/api/admin/all-requests', methods=['GET'])
+def admin_all_requests():
+    """Admin: unified view of every known request — text_request entries
+    (matched + unmatched) AND Seerr-originated requests not already covered by
+    a text_request entry. Each item carries current displayed state (override
+    > TMDB detail > Seerr request status) plus enriched title/year/poster.
+
+    Cached 60s; invalidated on every state-changing action so the admin sees
+    fresh data after their own clicks but the heavy detail fetch isn't redone
+    on every page load.
+    """
+    err = _require_admin()
+    if err: return err
+    try:
+        data = cached('admin_all_requests', 60, _build_admin_all_requests)
+        return jsonify(data)
+    except Exception as e:
+        print(f'admin_all_requests failed: {e}')
+        return jsonify({'items': [], 'error': str(e)}), 500
+
 def _fetch_recently_fulfilled():
-    """Fetch Seerr-fulfilled requests, plus any matched anonymous requests that are now available."""
+    """Fetch ALL recent Seerr requests + matched anon-requests + unmatched text requests.
+    Each item carries a `state` field ('pending' or 'uploaded') so the frontend can
+    render a colored footer indicating whether the request has been uploaded to Plex.
+    """
     resp = requests.get(
         f'{SEERR_URL}/api/v1/request',
-        params={'take': 25, 'skip': 0, 'filter': 'available', 'sort': 'modified'},
+        # filter=all returns pending + processing + available; sort=modified surfaces
+        # both newly-uploaded items and freshly-submitted requests near the top.
+        # take=50 keeps the public feed reasonably sized but matches Seerr's own
+        # queue length more accurately than the old take=25 (which was under-
+        # counting pending items when there were many recent uploads).
+        params={'take': 50, 'skip': 0, 'filter': 'all', 'sort': 'modified'},
         headers={'X-Api-Key': SEERR_API_KEY},
         timeout=10
     )
@@ -1099,18 +1407,31 @@ def _fetch_recently_fulfilled():
         return {'requests': [], 'error': f'Seerr returned {resp.status_code}'}
 
     results_list = resp.json().get('results', [])
+    all_text_requests = _load_text_requests()
+    matched_anon = [r for r in all_text_requests if r.get('tmdbId') and r.get('mediaType')]
+    unmatched_anon = [r for r in all_text_requests if not r.get('tmdbId')]
 
-    # Pull both Seerr-fulfilled details and matched anon-request details in parallel.
-    matched_anon = [r for r in _load_text_requests() if r.get('tmdbId') and r.get('mediaType')]
     with ThreadPoolExecutor(max_workers=5) as executor:
         seerr_items = list(executor.map(_fetch_detail, results_list))
         anon_items = [x for x in executor.map(_fetch_anon_detail, matched_anon) if x]
 
-    # Dedupe by (tmdbId, type) — prefer Seerr's record if both exist.
+    # Unmatched anon requests have no TMDB id yet, so no poster/year. Render as
+    # placeholder tiles with state='pending' so users see their text submission
+    # was received even before an admin matches it.
+    unmatched_items = [{
+        'title': r.get('text', 'Unknown request'),
+        'year': None,
+        'type': 'request',  # frontend conditionals hide the Movie/TV badge for this value
+        'addedAt': r.get('createdAt'),
+        'posterUrl': None,
+        'tmdbId': None,
+        'state': 'pending',
+    } for r in unmatched_anon]
+
+    # Dedupe by (title, year, type) — prefer Seerr's record if both exist.
     seen = set()
     merged = []
     for it in seerr_items:
-        # _fetch_detail doesn't expose tmdbId on the output, so dedupe by (title, year, type).
         soft_key = (it.get('title'), it.get('year'), it.get('type'))
         if soft_key in seen: continue
         seen.add(soft_key)
@@ -1120,8 +1441,14 @@ def _fetch_recently_fulfilled():
         if soft_key in seen: continue
         seen.add(soft_key)
         merged.append(it)
+    for it in unmatched_items:
+        soft_key = (it.get('title'), it.get('year'), it.get('type'))
+        if soft_key in seen: continue
+        seen.add(soft_key)
+        merged.append(it)
 
-    # Filter admin-hidden entries by (tmdbId, type).
+    # Filter admin-hidden entries by (tmdbId, type). Unmatched items have no
+    # tmdbId so they're never auto-hidden via this list.
     hidden = _load_hidden_fulfilled()
     if hidden:
         merged = [m for m in merged if (m.get('tmdbId'), m.get('type')) not in hidden]
@@ -1139,6 +1466,17 @@ def recently_fulfilled():
     except Exception as e:
         print(f"Recently fulfilled requests error: {e}")
         return jsonify({'requests': [], 'error': str(e)})
+
+@app.route('/api/recently-fulfilled/version', methods=['GET'])
+def recently_fulfilled_version():
+    """Lightweight poll endpoint — returns the version counter that bumps every
+    time anything affecting /api/recently-fulfilled changes (new anon request,
+    admin match/unmatch/state-change, Quick Request, hide). Clients poll this
+    cheap endpoint and only do the full /api/recently-fulfilled fetch when the
+    version differs from their last seen value. Near-real-time updates without
+    persistent connections or chatty heavy fetches.
+    """
+    return jsonify({'version': _request_status_version})
 
 # --- Plex Library Search ---
 

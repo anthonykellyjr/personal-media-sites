@@ -8,6 +8,7 @@ import CollectionsGrid from './components/CollectionsGrid.vue'
 import CollectionDetail from './components/CollectionDetail.vue'
 import NewCollection from './components/NewCollection.vue'
 import Toast from './components/Toast.vue'
+import { PageHeader } from '@webhead/shared'
 
 const { apiFetch, clearAdminKey } = useApi()
 
@@ -99,32 +100,23 @@ watch(selectedLibrary, () => {
 
   <!-- Main App -->
   <div v-else class="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900">
-    <!-- Header -->
-    <header class="sticky top-0 z-30 bg-dark-900/80 backdrop-blur-xl border-b border-white/10">
-      <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-4">
-        <!-- Title -->
-        <h1 class="text-lg font-bold text-white flex-shrink-0 cursor-pointer" @click="backToGrid">
+    <PageHeader variant="bar" title="Collection Manager">
+      <template #title>
+        <h1 class="text-base sm:text-lg font-bold flex-shrink-0 cursor-pointer" @click="backToGrid">
           <span class="bg-gradient-to-r from-purple-400 to-fuchsia-400 bg-clip-text text-transparent">Collection Manager</span>
         </h1>
+      </template>
 
-        <!-- Library selector -->
-        <div class="flex-1 flex justify-center">
-          <LibrarySelector
-            v-model="selectedLibrary"
-            :libraries="libraries"
-          />
-        </div>
+      <LibrarySelector v-model="selectedLibrary" :libraries="libraries" />
 
-        <!-- Logout -->
-        <button @click="logout"
-                class="flex-shrink-0 text-xs text-slate-500 hover:text-slate-300 transition-colors"
-                title="Logout">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-          </svg>
-        </button>
-      </div>
-    </header>
+      <button @click="logout"
+              class="flex-shrink-0 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+              title="Logout">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+        </svg>
+      </button>
+    </PageHeader>
 
     <!-- Content -->
     <main class="max-w-6xl mx-auto p-4">
