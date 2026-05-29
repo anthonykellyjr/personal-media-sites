@@ -4,7 +4,6 @@
   "workspaces": [
     "packages/shared",
     "status-hub",
-    "collection-manager",
     "movies-feed",
     "kelly-collection",
     "tutorials"

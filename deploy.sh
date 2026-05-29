@@ -12,7 +12,7 @@
 
 set -e
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ALL_VUE=(status-hub collection-manager movies-feed kelly-collection tutorials)
+ALL_VUE=(status-hub movies-feed kelly-collection tutorials)
 
 # No args → build all Vue apps (back-compat with the old behavior)
 if [ $# -eq 0 ]; then
